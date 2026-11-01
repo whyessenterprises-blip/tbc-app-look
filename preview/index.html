@@ -447,17 +447,36 @@ function catalog(){
  $("#rs").onclick=async()=>{if(await ask("Replace your catalog with the original Men’s Jacket catalog? Your catalog edits will be lost. Orders are kept.",{ok:"Reset"})){await snap("Before reset",1);const mm=cat.meas;cat=seed();applyDefs(cat);if(mm)cat.meas=mm;gid=cat.garments[0].id;saveCat();catalog()}};
  draw();
 }
+/* picture clipboard (kept on the device) and crop tool for diagrams */
+let imgClip=null;kvGet("imgclip").then(v=>{if(v)imgClip=v}).catch(()=>{});
+function cropDlg(src,done){const im=new Image();im.onload=()=>{
+ const W=Math.min(560,innerWidth-60),sc=Math.min(3,W/im.width,(innerHeight*0.6)/im.height)||1,cw=Math.round(im.width*sc),ch=Math.round(im.height*sc);
+ dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md" style="max-width:640px"><h2>Crop diagram</h2><p class="mute" style="margin-top:0">Drag a box over the part to keep.</p><div style="text-align:center"><canvas id="cc" width="${cw}" height="${ch}" style="touch-action:none;max-width:100%;border:1px solid var(--line);background:#fff;cursor:crosshair"></canvas></div><div class="row" style="margin-top:12px"><button class="p" id="cok" disabled>Use crop</button><button id="cre">Clear box</button><button id="ccx">Cancel</button></div></div></div>`;
+ const cv=$("#cc",dlg2),x=cv.getContext("2d");let r=null,st=null;
+ const draw=()=>{x.fillStyle="#fff";x.fillRect(0,0,cw,ch);x.drawImage(im,0,0,cw,ch);if(r&&r.w>2&&r.h>2){x.fillStyle="rgba(0,0,0,.35)";x.fillRect(0,0,cw,r.y);x.fillRect(0,r.y+r.h,cw,ch-r.y-r.h);x.fillRect(0,r.y,r.x,r.h);x.fillRect(r.x+r.w,r.y,cw-r.x-r.w,r.h);x.strokeStyle="#d00";x.lineWidth=2;x.strokeRect(r.x,r.y,r.w,r.h)}$("#cok",dlg2).disabled=!(r&&r.w>4&&r.h>4)};draw();
+ const pt=e=>{const b=cv.getBoundingClientRect();return{x:Math.max(0,Math.min(cw,(e.clientX-b.left)*cw/b.width)),y:Math.max(0,Math.min(ch,(e.clientY-b.top)*ch/b.height))}};
+ cv.onpointerdown=e=>{e.preventDefault();cv.setPointerCapture(e.pointerId);st=pt(e);r={x:st.x,y:st.y,w:0,h:0};draw()};
+ cv.onpointermove=e=>{if(!st)return;const p=pt(e);r={x:Math.min(st.x,p.x),y:Math.min(st.y,p.y),w:Math.abs(p.x-st.x),h:Math.abs(p.y-st.y)};draw()};
+ cv.onpointerup=cv.onpointercancel=()=>{st=null};
+ $("#cre",dlg2).onclick=()=>{r=null;draw()};$("#ccx",dlg2).onclick=()=>dlg2.innerHTML="";
+ $("#cok",dlg2).onclick=()=>{const sx=r.x/sc,sy=r.y/sc,sw=r.w/sc,sh=r.h/sc,f=Math.min(1,320/Math.max(sw,sh)),o=document.createElement("canvas");o.width=Math.max(1,Math.round(sw*f));o.height=Math.max(1,Math.round(sh*f));const ox=o.getContext("2d");ox.fillStyle="#fff";ox.fillRect(0,0,o.width,o.height);ox.drawImage(im,sx,sy,sw,sh,0,0,o.width,o.height);dlg2.innerHTML="";done(o.toDataURL("image/png"))}};
+ im.src=src}
 function itemDlg(c,i,after){
  const isNew=!i;i=i||{id:"i"+uid(),code:"",name:"",img:null,basic:false};let img=i.img;
  dlg.innerHTML=`<div class="ov"><div class="md"><h2>${isNew?"Add item":"Edit item"}</h2>
  <div id="ip" style="text-align:center;margin-bottom:10px"></div>
- <div class="row" style="margin-bottom:10px"><button id="up">Upload diagram</button><button id="rm">Remove diagram</button><input type="file" id="uf" accept="image/*" hidden></div>
+ <div class="row" style="margin-bottom:10px"><button id="up">Upload diagram</button><button id="crp">Crop</button><button id="cpy">Copy picture</button><button id="pst">Paste picture</button><button id="rm">Remove diagram</button><input type="file" id="uf" accept="image/*" hidden></div>
  <label>Code</label><input id="ic" value="${esc(i.code)}"><label style="margin-top:10px">Name / description</label><textarea id="in">${esc(i.name)}</textarea>
  <label style="margin-top:10px">Category</label><select id="icat">${G().cats.map(x=>`<option value="${x.id}"${x.id===c.id?" selected":""}>${esc(x.name)}</option>`).join("")}</select>
  ${i.vf?'<p style="margin:10px 0 0;padding:8px;border-radius:8px;background:#fff3cd;color:#664d03;font-family:system-ui,sans-serif">⚠ This code was read from the book automatically and may be off by one character. Compare it with the book, fix it if needed, then Save (this clears the warning).</p>':""}<label style="margin-top:12px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="ib" style="width:24px;min-height:24px"${i.basic?" checked":""}> ★ Show on main menu (basic option)</label><label style="margin-top:8px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="idf" style="width:24px;min-height:24px"${i.def?" checked":""}> △ Factory default (the factory uses it when nothing is chosen in this category)</label>
  <div class="row" style="margin-top:14px"><button class="p" id="ok">Save</button><button id="no">Cancel</button>${isNew?"":'<button id="rmi" style="margin-left:auto">Delete</button>'}</div></div></div>`;
- const pv=()=>$("#ip").innerHTML=img?`<img src="${img}" style="max-width:100%;max-height:180px;background:#fff;border-radius:8px">`:'<small style="color:var(--mute)">No diagram</small>';pv();
+ let pv=()=>$("#ip").innerHTML=img?`<img src="${img}" style="max-width:100%;max-height:180px;background:#fff;border-radius:8px">`:'<small style="color:var(--mute)">No diagram</small>';pv();
  $("#up").onclick=()=>$("#uf").click();$("#rm").onclick=()=>{img=null;pv()};
+ const btns=()=>{$("#crp").disabled=!img;$("#cpy").disabled=!img;$("#pst").disabled=!imgClip};
+ const _pv=pv;pv=()=>{_pv();btns()};pv();
+ $("#cpy").onclick=async()=>{imgClip=img;await kvSet("imgclip",img);btns();say("Picture copied. Open another code and tap Paste picture.")};
+ $("#pst").onclick=()=>{if(imgClip){img=imgClip;pv()}};
+ $("#crp").onclick=()=>{if(img)cropDlg(img,d=>{img=d;pv()})};
  $("#uf").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),cv=document.createElement("canvas");cv.width=im.width*k;cv.height=im.height*k;const x=cv.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);img=cv.toDataURL("image/jpeg",.85);pv()};im.src=u};
  $("#no").onclick=()=>dlg.innerHTML="";
  if(!isNew)$("#rmi").onclick=async()=>{if(await ask("Delete this item?",{ok:"Delete"})){await snap("Before delete",1);c.items=c.items.filter(x=>x!==i);saveCat();dlg.innerHTML="";after()}};
