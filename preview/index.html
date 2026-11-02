@@ -98,7 +98,7 @@ async function snap(label,force){clearTimeout(snapT);try{if(!cat)return false;co
  const drop=idx.slice(25);for(const x of drop)await kvDel("snap:"+x.t);idx=idx.slice(0,25);await kvSet("snapidx",idx);lastS=s;snapErr="";if(drop.length)pruneImgs(idx);return true}catch(e){snapErr=String(e&&e.message||e);return false}}
 addEventListener("visibilitychange",()=>{if(document.hidden)snap("Auto")});addEventListener("pagehide",()=>snap("Auto"));
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
-let cat,orders=[],view="list",cur=null,editing=null,gid,sel={},q="",open=new Set(),dirty=false,prefill=null,pq="",pOpen=null;
+let cat,orders=[],view="list",cur=null,editing=null,gid,sel={},q="",fD="",fD1="",fD2="",fT="",fS="",open=new Set(),dirty=false,prefill=null,pq="",pOpen=null;
 const app=$("#app"),dlg=$("#dlg"),dlg2=$("#dlg2");
 function ask(msg,o={}){return new Promise(res=>{dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md"><p style="font-family:system-ui,sans-serif;white-space:pre-wrap">${esc(msg)}</p>${o.input?`<input id="ai2" value="${esc(o.def||"")}">`:""}<div class="row" style="margin-top:12px"><button class="p" id="y">${o.ok||"OK"}</button>${o.cancel===false?"":'<button id="n">Cancel</button>'}</div></div></div>`;const done=v=>{dlg2.innerHTML="";res(v)};$("#y",dlg2).onclick=()=>done(o.input?$("#ai2",dlg2).value:true);const n=$("#n",dlg2);if(n)n.onclick=()=>done(o.input?null:false);if(o.input)$("#ai2",dlg2).focus()})}
 const say=m=>ask(m,{cancel:false});
@@ -131,7 +131,7 @@ function people(){
   return `<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><div style="font-size:26px;line-height:1.2">${esc(c.name)}</div><div class="mute" style="margin:4px 0 0">${[c.phone,c.email,c.height&&"Height "+c.height].filter(Boolean).map(esc).join(" · ")||"No contact details"}</div></div><button class="p" id="pno">+ New order for this customer</button></div></div>
   ${ss.length?ss.map(([n,x])=>`<div class="card"><h2>${esc(n)} measurements (cm) <small style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--mute)">· from ${esc(x.from.no||"")} ${fdate(x.from.created)}</small></h2><div class="gd mt" style="margin-top:10px">${Object.entries(x.vals).map(([a,b])=>`<div class="gc"><span>${esc(a)}</span><b>${esc(b)}</b></div>`).join("")}</div></div>`).join(""):'<div class="card"><p class="mute" style="margin:0">No measurements saved yet.</p></div>'}
   ${pp?`<div class="card"><h2>Body &amp; posture <small style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--mute)">· from ${esc(pp.no||"")} ${fdate(pp.created)}</small></h2>${ch.length?`<div class="gd" style="margin-top:10px">${ch.map(p=>`<div class="gc"><span>${esc(p.n)}</span><b>${esc(p.v)}</b></div>`).join("")}</div>`:'<p class="mute" style="margin:8px 0 0">All standard (Normal).</p>'}</div>`:""}
-  <div class="card"><h2>Orders (${c.orders.length})</h2>${c.orders.map(o=>`<div class="o" data-n="${esc(o.no)}"><div><b>${esc(o.no)}</b><br><small>${fdate(o.created)} · ${esc(o.garment||"")}</small></div><span class="tag">${esc(o.status||"")}</span></div>`).join("")}</div>`};
+  <div class="card"><h2>Orders (${c.orders.length})</h2>${c.orders.map(o=>`<div class="o" data-n="${esc(o.no)}"><div><b>${o.seq?"#"+o.seq+" · ":""}${esc(o.no)}</b><br><small>${fdate(o.created)} · ${esc(o.garment||"")}</small></div><span class="tag">${esc(o.status||"")}</span></div>`).join("")}</div>`};
  const c=pOpen&&customers().find(x=>x.key===pOpen);
  app.innerHTML=c?`<div class="row" style="margin-bottom:12px"><button id="pbk">← Customers</button></div>${one(c)}`:
   `<div class="card"><input type="search" id="pq" placeholder="Search customer name or phone…" value="${esc(pq)}"></div><div class="card">${cs.length?cs.map(x=>`<div class="o" data-c="${esc(x.key)}"><div><b>${esc(x.name)}</b><br><small>${[x.phone,x.orders.length+" order"+(x.orders.length>1?"s":""),"last "+fdate(x.last)].filter(Boolean).map(esc).join(" · ")}</small></div></div>`).join(""):`<p class="mute" style="margin:0">${orders.length?"No matching customers.":"No customers yet. They appear here once an order is saved."}</p>`}</div>`;
@@ -141,9 +141,25 @@ function people(){
   $$(".o[data-c]").forEach(r=>r.onclick=()=>{pOpen=r.dataset.c;people();scrollTo({top:0})})}
 }
 /* ---------- orders list ---------- */
+const nextSeq=()=>orders.reduce((m,o)=>Math.max(m,+o.seq||0),0)+1;
+function numOrd(){let n=nextSeq(),ch=false;[...orders].filter(o=>!o.seq).sort((a,b)=>(a.created||0)-(b.created||0)).forEach(o=>{o.seq=n++;ch=true});return ch}
+const onum=o=>o.seq?"#"+o.seq:"";
+const otype=o=>(o.suit||"").replace(/ \(.*| only$/g,"");
+const DRANGE=[["","Any date"],["today","Today"],["7","Last 7 days"],["30","Last 30 days"],["month","This month"],["lmonth","Last month"],["year","This year"],["pick","Pick dates…"]];
+function dRange(){const d=new Date(),y=d.getFullYear(),m=d.getMonth(),day=new Date(y,m,d.getDate()).getTime(),D=864e5;
+ switch(fD){case"today":return[day,day+D];case"7":return[day-6*D,day+D];case"30":return[day-29*D,day+D];case"month":return[new Date(y,m,1).getTime(),new Date(y,m+1,1).getTime()];
+ case"lmonth":return[new Date(y,m-1,1).getTime(),new Date(y,m,1).getTime()];case"year":return[new Date(y,0,1).getTime(),new Date(y+1,0,1).getTime()];
+ case"pick":{const p=v=>{const[a,b,c]=v.split("-").map(Number);return new Date(a,b-1,c).getTime()};return[fD1?p(fD1):-Infinity,fD2?p(fD2)+D:Infinity]}}return null}
 function list(){
- const f=orders.filter(o=>!q||JSON.stringify([o.customer,o.no,o.phone,o.garment]).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>b.created-a.created);
- app.innerHTML=`<div id="bs"></div><div class="card"><input type="search" id="q" placeholder="Search name, order no…" value="${esc(q)}"></div><div class="card">${f.length?f.map(o=>`<div class="o" data-n="${o.no}"><div><b>${esc(o.customer)}</b><br><small>${esc(o.no)} · ${esc(o.garment||"")} · ${o.due?"Due "+esc(o.due):"No due date"}</small></div>${(()=>{const[a,b]=chkDone(o);return b?`<span class="tag" style="border-color:var(--line);color:var(--mute)">${a}/${b} ✓</span>`:""})()}<span class="tag">${esc(o.status)}</span></div>`).join(""):'<p style="color:var(--mute)">No orders yet. Tap “New order”.</p>'}</div>`;
+ if(numOrd())saveOrd();
+ const r=dRange(),ql=q.trim().toLowerCase();
+ const f=orders.filter(o=>(!ql||JSON.stringify([o.customer,o.no,o.phone,o.garment,onum(o)]).toLowerCase().includes(ql))&&(!r||((o.created||0)>=r[0]&&(o.created||0)<r[1]))&&(!fT||otype(o)===fT)&&(!fS||o.status===fS)).sort((a,b)=>b.created-a.created);
+ const act=!!(fD||fT||fS),opt=(v,l,c)=>`<option value="${esc(v)}"${v===c?" selected":""}>${esc(l)}</option>`;
+ const fbar=`<div class="row" style="margin-top:8px"><select id="fD">${DRANGE.map(([v,l])=>opt(v,l,fD)).join("")}</select><select id="fT">${opt("","All order types",fT)}${SUITS.map(x=>x.n.replace(/ \(.*/,"")).map(n=>opt(n,n,fT)).join("")}</select><select id="fS">${opt("","All statuses",fS)}${STATUSES.map(n=>opt(n,n,fS)).join("")}</select></div>${fD==="pick"?`<div class="row" style="margin-top:8px"><label style="margin:0">From</label><input type="date" id="fD1" value="${esc(fD1)}" style="flex:1;width:auto"><label style="margin:0">To</label><input type="date" id="fD2" value="${esc(fD2)}" style="flex:1;width:auto"></div>`:""}${act||ql?`<div class="row" style="margin-top:8px;justify-content:space-between"><small style="color:var(--mute)">Showing ${f.length} of ${orders.length} orders</small>${act?`<button id="fX">Clear filters</button>`:""}</div>`:""}`;
+ app.innerHTML=`<div id="bs"></div><div class="card"><input type="search" id="q" placeholder="Search name, order no…" value="${esc(q)}">${fbar}</div><div class="card">${f.length?f.map(o=>`<div class="o" data-n="${o.no}"><div><b><span style="color:var(--mute)">${onum(o)}</span> ${esc(o.customer)}</b><br><small>${fdate(o.created)} · ${esc(o.no)} · ${esc(o.garment||"")} · ${o.due?"Due "+esc(o.due):"No due date"}</small></div>${(()=>{const[a,b]=chkDone(o);return b?`<span class="tag" style="border-color:var(--line);color:var(--mute)">${a}/${b} ✓</span>`:""})()}<span class="tag">${esc(o.status)}</span></div>`).join(""):(orders.length?'<p style="color:var(--mute)">No orders match.</p>':'<p style="color:var(--mute)">No orders yet. Tap “New order”.</p>')}</div>`;
+ const fo=(id,fn)=>{const e=$("#"+id);if(e)e.onchange=ev=>{fn(ev.target.value);list()}};
+ fo("fD",v=>fD=v);fo("fT",v=>fT=v);fo("fS",v=>fS=v);fo("fD1",v=>fD1=v);fo("fD2",v=>fD2=v);
+ if($("#fX"))$("#fX").onclick=()=>{fD=fT=fS=fD1=fD2="";list()};
  $("#q").oninput=e=>{q=e.target.value;list();const i=$("#q");i.focus();i.setSelectionRange(q.length,q.length)};
  bstrip();$$(".o").forEach(r=>r.onclick=()=>{cur=orders.find(o=>o.no===r.dataset.n);view="detail";render()});
 }
@@ -163,7 +179,7 @@ const ordGrid=(o,on,hx)=>{
  const ms=(o.msets||[]).map(s=>{const k="m:"+s.name;return `<div class="card mset"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(s.name)} measurements (cm)${o.method?` <span style="font-weight:400;text-transform:none;letter-spacing:0">· ${esc(o.method)}</span>`:""}</h2></div><div class="gd mt" style="margin-top:10px">${Object.entries(s.vals).map(([a,b])=>{const kk=k+"|"+a;return `<div class="gc${on?" hk":""}${dn(o,kk,on)}">${ckb(o,kk,on)}<span>${esc(a)}</span><b>${esc(b)}</b></div>`}).join("")}</div></div>`}).join("");
  const lm=Object.entries(o.measurements||{});
  const ch=(o.posture||[]).filter(p=>!p.d);
- return `<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><div class="mute" style="margin:0">${esc(o.no||"")} · ${esc(o.suit?o.suit.replace(/ \(.*| only$/g,"")+" — ":"")}${esc(o.garment||"")}</div><div style="font-size:28px;line-height:1.2">${esc(o.customer||"")}</div></div>${hx||""}</div>${info?`<div class="gd" style="margin-top:12px">${info}</div>`:""}</div>
+ return `<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><div class="mute" style="margin:0">${o.seq?"#"+o.seq+" · ":""}${esc(o.no||"")} · ${esc(o.suit?o.suit.replace(/ \(.*| only$/g,"")+" — ":"")}${esc(o.garment||"")}</div><div style="font-size:28px;line-height:1.2">${esc(o.customer||"")}</div></div>${hx||""}</div>${info?`<div class="gd" style="margin-top:12px">${info}</div>`:""}</div>
  ${det?`<div class="card"><h2>Order details</h2><div class="gd">${det}</div></div>`:""}
  <div class="card"><h2>Style options — ${(o.picks||[]).length} chosen</h2>${pk?`<div class="pg">${pk}</div>`:'<p class="mute" style="margin:0">None chosen.</p>'}</div>
  ${(o.defs||[]).length?`<div class="card"><details class="more"${on?"":" open"}><summary><b style="color:var(--ink)">△ Factory defaults — ${o.defs.length} (no code chosen)</b></summary><p class="mute" style="margin:6px 0 0">Nothing was picked in these categories, so the factory uses its default (△ in the book).</p><div class="dfl">${o.defs.map(d=>`<div><b>△ ${esc(dc(d.code))}</b> ${(o.garment||"").includes(" + ")&&d.g?esc(d.g)+" · ":""}${esc(d.cat)} — ${esc(d.name)}</div>`).join("")}</div></details></div>`:""}
@@ -172,7 +188,7 @@ const ordGrid=(o,on,hx)=>{
  ${o.posture?`<div class="card mset"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Body &amp; posture</h2></div>${ch.length?`<div class="gd" style="margin-top:10px">${ch.map(p=>{const kk="pp:"+o.posture.indexOf(p);return `<div class="gc${on?" hk":""}${dn(o,kk,on)}">${ckb(o,kk,on)}<span>${esc(pn(o,p))}</span><b>${esc(p.v)}</b></div>`}).join("")}</div><p class="mute" style="margin-bottom:0">Everything else: standard (Normal).</p>`:'<p class="mute" style="margin:8px 0 0">All standard (Normal).</p>'}</div>`:""}
  ${(pay||o.notes)?`<div class="card">${pay?`<div class="gd">${pay}</div>`:""}${o.notes?`<p style="white-space:pre-wrap;font-family:system-ui,sans-serif;margin:${pay?"12px":"0"} 0 0"><b>Notes:</b> ${esc(o.notes)}</p>`:""}</div>`:""}`};
 function orderText(o){const L=[],c=k=>o.chk&&o.chk[k]?"[x] ":"";
- L.push(`ORDER ${o.no||""} — ${o.customer||""} — ${o.suit?o.suit.replace(/ \(.*| only$/g,"")+": ":""}${o.garment||""}`);
+ L.push(`ORDER ${o.seq?"#"+o.seq+" ":""}${o.no||""} — ${o.customer||""} — ${o.suit?o.suit.replace(/ \(.*| only$/g,"")+": ":""}${o.garment||""}`);
  [["Due","due"],["Height","height"],["Phone","phone"],["Email","email"]].forEach(([l,k])=>o[k]&&L.push(`${l}: ${o[k]}`));
  L.push("");const d=FLD.filter(([f])=>o[f]);if(d.length){L.push("DETAILS");d.forEach(([f,l])=>L.push(`${c("f:"+f)}${l}: ${o[f]}`));L.push("")}
  L.push("STYLE OPTIONS");(o.picks||[]).forEach(p=>L.push(`${c("p:"+(p.id||p.code))}${dc(p.code)}  ${(o.garment||"").includes(" + ")&&p.g?p.g+" / ":""}${p.cat}: ${p.name}${p.note?`  >> NOTE: ${p.note}`:""}`));L.push("");
@@ -353,7 +369,7 @@ function form(){
   const{o,miss}=collect();
   if(miss.length&&!await ask("These required measurements are empty: "+miss.join(", ")+". Save anyway?",{ok:"Save anyway"}))return;
   if(editing){Object.assign(editing,o);cur=editing;editing=null;view="detail"}
-  else{const now=Date.now();Object.assign(o,{no:"CS-"+now.toString(36).slice(-5).toUpperCase(),created:now,status:"New",chk:{}});orders.push(o);view="list"}
+  else{const now=Date.now();Object.assign(o,{no:"CS-"+now.toString(36).slice(-5).toUpperCase(),created:now,seq:nextSeq(),status:"New",chk:{}});orders.push(o);view="list"}
   await saveOrd();render()};
  $("#otype").value=(editing&&editing.suit&&editing.suit.replace(/ only$/,""))||(editing&&suitOf(editing))||SUITS[0].n;{const a=allowed();if(!a.some(x=>x.id===gid))gid=a[0].id}
  applyLayout();draw();drawG();
