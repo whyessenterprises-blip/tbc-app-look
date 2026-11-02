@@ -85,8 +85,8 @@ async function kvDel(k){delete mem[k];const d=await idb;if(!d)return;return new 
 let snapT=null,lastS="",snapErr="",persist=null;
 const imgH=new Map();
 const ihash=s=>{let h=imgH.get(s);if(h)return h;let a=5381,b=52711;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);a=(((a<<5)+a)^c)>>>0;b=(((b<<5)+b)^c)>>>0}h=a.toString(36)+b.toString(36)+s.length.toString(36);imgH.set(s,h);return h};
-const packCat=()=>{const m={};const c=JSON.parse(JSON.stringify(cat,(k,v)=>{if(k==="img"&&typeof v==="string"&&v.length>200){const h=ihash(v);m[h]=v;return"@"+h}return v}));return{c,m}};
-async function unpackCat(c){const need=new Set(),each=f=>c.garments.forEach(g=>g.cats.forEach(x=>x.items.forEach(f)));each(i=>{if(typeof i.img==="string"&&i.img[0]==="@")need.add(i.img.slice(1))});const got={};for(const h of need)got[h]=await kvGet("img:"+h);let miss=0;each(i=>{if(typeof i.img==="string"&&i.img[0]==="@"){const d=got[i.img.slice(1)];if(d)i.img=d;else{i.img="";miss++}}});return miss}
+const packCat=()=>{const m={};const c=JSON.parse(JSON.stringify(cat,(k,v)=>{if((k==="img"||k==="orig")&&typeof v==="string"&&v.length>200){const h=ihash(v);m[h]=v;return"@"+h}return v}));return{c,m}};
+async function unpackCat(c){const need=new Set(),each=f=>c.garments.forEach(g=>g.cats.forEach(x=>x.items.forEach(f)));each(i=>["img","orig"].forEach(k=>{if(typeof i[k]==="string"&&i[k][0]==="@")need.add(i[k].slice(1))}));const got={};for(const h of need)got[h]=await kvGet("img:"+h);let miss=0;each(i=>["img","orig"].forEach(k=>{if(typeof i[k]==="string"&&i[k][0]==="@"){const d=got[i[k].slice(1)];if(d)i[k]=d;else if(k==="img"){i.img="";miss++}else delete i.orig}}));return miss}
 async function pruneImgs(idx){try{const keep=new Set(Object.keys(packCat().m));for(const x of idx){const s=await kvGet("snap:"+x.t);if(s)for(const m of s.matchAll(/"@([0-9a-z]+)"/g))keep.add(m[1])}const all=(await kvGet("imgidx"))||[],rest=[];for(const h of all){if(keep.has(h))rest.push(h);else await kvDel("img:"+h)}await kvSet("imgidx",rest)}catch(e){}}
 function sched(){clearTimeout(snapT);snapT=setTimeout(()=>snap("Auto"),4000)}
 async function snap(label,force){clearTimeout(snapT);try{if(!cat)return false;const{c,m}=packCat(),s=JSON.stringify({cat:c,orders});if(s===lastS&&!force)return true;
@@ -196,9 +196,9 @@ function backupDlg(){const full=()=>JSON.stringify({cat,orders}),ord=()=>JSON.st
  $("#b4",dlg2).onclick=async()=>{dlText(full(),`suit-orders-full-${stamp()}.json`);await markBackup();msg("Download started (if your browser allows it).")};
  $("#bx",dlg2).onclick=()=>dlg2.innerHTML=""}
 /* small catalog-only export (for building the owner's catalog into the app) */
-function catExport(){const sd={};seed().garments.forEach(g=>g.cats.forEach(c=>c.items.forEach(i=>sd[i.id]=i)));
- const same=(a,b)=>a.code===b.code&&a.name===b.name&&!!a.basic===!!b.basic&&!!a.def===!!b.def&&!a.vf===!b.vf&&(a.img||"")===(b.img||"");
- const it=i=>{const o=sd[i.id];if(o&&same(i,o))return i.id;const x={id:i.id,code:i.code,name:i.name,basic:!!i.basic,def:!!i.def};if(i.vf)x.vf=1;x.img=o&&(i.img||"")===(o.img||"")?"=":(i.img||"");return x};
+function catExport(){const sd={},byImg=new Map();seed().garments.forEach(g=>g.cats.forEach(c=>c.items.forEach(i=>{sd[i.id]=i;if(i.img&&!byImg.has(i.img))byImg.set(i.img,i.id)})));
+ const same=(a,b)=>a.code===b.code&&a.name===b.name&&!!a.basic===!!b.basic&&!!a.def===!!b.def&&!a.vf===!b.vf&&(a.img||"")===(b.img||"")&&!a.orig;
+ const it=i=>{const o=sd[i.id];if(o&&same(i,o))return i.id;const x={id:i.id,code:i.code,name:i.name,basic:!!i.basic,def:!!i.def};if(i.vf)x.vf=1;const pic=(v,own)=>!v?"":own&&v===own?"=":byImg.has(v)?"="+byImg.get(v):v;x.img=pic(i.img,o&&o.img);if(i.orig)x.orig=pic(i.orig,o&&o.img);return x};
  return JSON.stringify({kind:"catalog-update",v:1,made:new Date().toISOString(),garments:cat.garments.map(g=>({id:g.id,name:g.name,cats:g.cats.map(c=>{const y={id:c.id,name:c.name,items:c.items.map(it)};if(c.off)y.off=1;return y})})),meas:cat.meas})}
 function catExportDlg(){const t=catExport();
  dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md"><h2>Send catalog to Claude</h2><p class="mute" style="margin-top:0">This is only your catalog: no customers or orders. Tap <b>Copy</b>, then paste it into the chat with Claude.</p><p class="mute">Size: ${Math.ceil(t.length/1024)} KB</p><div class="row"><button class="p" id="xcc">Copy</button><button id="xcd">Download as file</button><button id="xcx">Close</button></div><p class="mute" id="xcm"></p><textarea id="xct" hidden style="min-height:120px"></textarea></div></div>`;
@@ -448,10 +448,10 @@ function catalog(){
  draw();
 }
 /* picture clipboard (kept on the device) and crop tool for diagrams */
-let imgClip=null;kvGet("imgclip").then(v=>{if(v)imgClip=v}).catch(()=>{});
+let imgClip=null;kvGet("imgclip").then(v=>{if(v)imgClip=typeof v==="string"?{img:v,orig:v}:v}).catch(()=>{});
 function cropDlg(src,done){const im=new Image();im.onload=()=>{
  const W=Math.min(560,innerWidth-60),sc=Math.min(3,W/im.width,(innerHeight*0.6)/im.height)||1,cw=Math.round(im.width*sc),ch=Math.round(im.height*sc);
- dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md" style="max-width:640px"><h2>Crop diagram</h2><p class="mute" style="margin-top:0">Drag a box over the part to keep.</p><div style="text-align:center"><canvas id="cc" width="${cw}" height="${ch}" style="touch-action:none;max-width:100%;border:1px solid var(--line);background:#fff;cursor:crosshair"></canvas></div><div class="row" style="margin-top:12px"><button class="p" id="cok" disabled>Use crop</button><button id="cre">Clear box</button><button id="ccx">Cancel</button></div></div></div>`;
+ dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md" style="max-width:640px"><h2>Crop diagram</h2><p class="mute" style="margin-top:0">This is the whole original diagram. Drag a box over the part to keep.</p><div style="text-align:center"><canvas id="cc" width="${cw}" height="${ch}" style="touch-action:none;max-width:100%;border:1px solid var(--line);background:#fff;cursor:crosshair"></canvas></div><div class="row" style="margin-top:12px"><button class="p" id="cok" disabled>Use crop</button><button id="cre">Clear box</button><button id="ccx">Cancel</button></div></div></div>`;
  const cv=$("#cc",dlg2),x=cv.getContext("2d");let r=null,st=null;
  const draw=()=>{x.fillStyle="#fff";x.fillRect(0,0,cw,ch);x.drawImage(im,0,0,cw,ch);if(r&&r.w>2&&r.h>2){x.fillStyle="rgba(0,0,0,.35)";x.fillRect(0,0,cw,r.y);x.fillRect(0,r.y+r.h,cw,ch-r.y-r.h);x.fillRect(0,r.y,r.x,r.h);x.fillRect(r.x+r.w,r.y,cw-r.x-r.w,r.h);x.strokeStyle="#d00";x.lineWidth=2;x.strokeRect(r.x,r.y,r.w,r.h)}$("#cok",dlg2).disabled=!(r&&r.w>4&&r.h>4)};draw();
  const pt=e=>{const b=cv.getBoundingClientRect();return{x:Math.max(0,Math.min(cw,(e.clientX-b.left)*cw/b.width)),y:Math.max(0,Math.min(ch,(e.clientY-b.top)*ch/b.height))}};
@@ -462,25 +462,26 @@ function cropDlg(src,done){const im=new Image();im.onload=()=>{
  $("#cok",dlg2).onclick=()=>{const sx=r.x/sc,sy=r.y/sc,sw=r.w/sc,sh=r.h/sc,f=Math.min(1,320/Math.max(sw,sh)),o=document.createElement("canvas");o.width=Math.max(1,Math.round(sw*f));o.height=Math.max(1,Math.round(sh*f));const ox=o.getContext("2d");ox.fillStyle="#fff";ox.fillRect(0,0,o.width,o.height);ox.drawImage(im,sx,sy,sw,sh,0,0,o.width,o.height);dlg2.innerHTML="";done(o.toDataURL("image/png"))}};
  im.src=src}
 function itemDlg(c,i,after){
- const isNew=!i;i=i||{id:"i"+uid(),code:"",name:"",img:null,basic:false};let img=i.img;
+ const isNew=!i;i=i||{id:"i"+uid(),code:"",name:"",img:null,basic:false};let img=i.img,orig=i.orig||null;
  dlg.innerHTML=`<div class="ov"><div class="md"><h2>${isNew?"Add item":"Edit item"}</h2>
  <div id="ip" style="text-align:center;margin-bottom:10px"></div>
- <div class="row" style="margin-bottom:10px"><button id="up">Upload diagram</button><button id="crp">Crop</button><button id="cpy">Copy picture</button><button id="pst">Paste picture</button><button id="rm">Remove diagram</button><input type="file" id="uf" accept="image/*" hidden></div>
+ <div class="row" style="margin-bottom:10px"><button id="up">Upload diagram</button><button id="crp">Crop</button><button id="cfull">Use full diagram</button><button id="cpy">Copy picture</button><button id="pst">Paste picture</button><button id="rm">Remove diagram</button><input type="file" id="uf" accept="image/*" hidden></div>
  <label>Code</label><input id="ic" value="${esc(i.code)}"><label style="margin-top:10px">Name / description</label><textarea id="in">${esc(i.name)}</textarea>
  <label style="margin-top:10px">Category</label><select id="icat">${G().cats.map(x=>`<option value="${x.id}"${x.id===c.id?" selected":""}>${esc(x.name)}</option>`).join("")}</select>
  ${i.vf?'<p style="margin:10px 0 0;padding:8px;border-radius:8px;background:#fff3cd;color:#664d03;font-family:system-ui,sans-serif">⚠ This code was read from the book automatically and may be off by one character. Compare it with the book, fix it if needed, then Save (this clears the warning).</p>':""}<label style="margin-top:12px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="ib" style="width:24px;min-height:24px"${i.basic?" checked":""}> ★ Show on main menu (basic option)</label><label style="margin-top:8px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="idf" style="width:24px;min-height:24px"${i.def?" checked":""}> △ Factory default (the factory uses it when nothing is chosen in this category)</label>
  <div class="row" style="margin-top:14px"><button class="p" id="ok">Save</button><button id="no">Cancel</button>${isNew?"":'<button id="rmi" style="margin-left:auto">Delete</button>'}</div></div></div>`;
  let pv=()=>$("#ip").innerHTML=img?`<img src="${img}" style="max-width:100%;max-height:180px;background:#fff;border-radius:8px">`:'<small style="color:var(--mute)">No diagram</small>';pv();
- $("#up").onclick=()=>$("#uf").click();$("#rm").onclick=()=>{img=null;pv()};
- const btns=()=>{$("#crp").disabled=!img;$("#cpy").disabled=!img;$("#pst").disabled=!imgClip};
+ $("#up").onclick=()=>$("#uf").click();$("#rm").onclick=()=>{img=null;orig=null;pv()};
+ const btns=()=>{$("#crp").disabled=!img;$("#cpy").disabled=!img;$("#pst").disabled=!imgClip;$("#cfull").hidden=!(orig&&orig!==img)};
  const _pv=pv;pv=()=>{_pv();btns()};pv();
- $("#cpy").onclick=async()=>{imgClip=img;await kvSet("imgclip",img);btns();say("Picture copied. Open another code and tap Paste picture.")};
- $("#pst").onclick=()=>{if(imgClip){img=imgClip;pv()}};
- $("#crp").onclick=()=>{if(img)cropDlg(img,d=>{img=d;pv()})};
- $("#uf").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),cv=document.createElement("canvas");cv.width=im.width*k;cv.height=im.height*k;const x=cv.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);img=cv.toDataURL("image/jpeg",.85);pv()};im.src=u};
+ $("#cpy").onclick=async()=>{imgClip={img,orig:orig||img};await kvSet("imgclip",imgClip);btns();say("Picture copied. Open another code and tap Paste picture.")};
+ $("#pst").onclick=()=>{if(imgClip){img=imgClip.img;orig=imgClip.orig&&imgClip.orig!==imgClip.img?imgClip.orig:null;pv()}};
+ $("#cfull").onclick=()=>{if(orig){img=orig;pv()}};
+ $("#crp").onclick=()=>{if(!img)return;const src=orig||img;cropDlg(src,d=>{orig=src;img=d;pv()})};
+ $("#uf").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),cv=document.createElement("canvas");cv.width=im.width*k;cv.height=im.height*k;const x=cv.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);img=cv.toDataURL("image/jpeg",.85);orig=null;pv()};im.src=u};
  $("#no").onclick=()=>dlg.innerHTML="";
  if(!isNew)$("#rmi").onclick=async()=>{if(await ask("Delete this item?",{ok:"Delete"})){await snap("Before delete",1);c.items=c.items.filter(x=>x!==i);saveCat();dlg.innerHTML="";after()}};
- $("#ok").onclick=()=>{i.code=$("#ic").value.trim();i.name=$("#in").value.trim();i.img=img;i.basic=$("#ib").checked;i.def=$("#idf").checked;delete i.vf;if(!i.code&&!i.name){say("Add a code or a name.");return}
+ $("#ok").onclick=()=>{i.code=$("#ic").value.trim();i.name=$("#in").value.trim();i.img=img;if(orig&&orig!==img)i.orig=orig;else delete i.orig;i.basic=$("#ib").checked;i.def=$("#idf").checked;delete i.vf;if(!i.code&&!i.name){say("Add a code or a name.");return}
   const t=G().cats.find(x=>x.id===$("#icat").value)||c;
   if(isNew)t.items.push(i);else if(t!==c){c.items=c.items.filter(x=>x!==i);t.items.push(i)}
   open.add(t.id);saveCat();dlg.innerHTML="";after()};
