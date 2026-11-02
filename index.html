@@ -98,7 +98,7 @@ async function snap(label,force){clearTimeout(snapT);try{if(!cat)return false;co
  const drop=idx.slice(25);for(const x of drop)await kvDel("snap:"+x.t);idx=idx.slice(0,25);await kvSet("snapidx",idx);lastS=s;snapErr="";if(drop.length)pruneImgs(idx);return true}catch(e){snapErr=String(e&&e.message||e);return false}}
 addEventListener("visibilitychange",()=>{if(document.hidden)snap("Auto")});addEventListener("pagehide",()=>snap("Auto"));
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
-let cat,orders=[],view="list",cur=null,editing=null,gid,sel={},q="",open=new Set(),dirty=false,prefill=null,pq="",pOpen=null;
+let cat,orders=[],view="list",cur=null,editing=null,gid,sel={},q="",fD="",fD1="",fD2="",fT="",fS="",open=new Set(),dirty=false,prefill=null,pq="",pOpen=null;
 const app=$("#app"),dlg=$("#dlg"),dlg2=$("#dlg2");
 function ask(msg,o={}){return new Promise(res=>{dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md"><p style="font-family:system-ui,sans-serif;white-space:pre-wrap">${esc(msg)}</p>${o.input?`<input id="ai2" value="${esc(o.def||"")}">`:""}<div class="row" style="margin-top:12px"><button class="p" id="y">${o.ok||"OK"}</button>${o.cancel===false?"":'<button id="n">Cancel</button>'}</div></div></div>`;const done=v=>{dlg2.innerHTML="";res(v)};$("#y",dlg2).onclick=()=>done(o.input?$("#ai2",dlg2).value:true);const n=$("#n",dlg2);if(n)n.onclick=()=>done(o.input?null:false);if(o.input)$("#ai2",dlg2).focus()})}
 const say=m=>ask(m,{cancel:false});
@@ -141,9 +141,21 @@ function people(){
   $$(".o[data-c]").forEach(r=>r.onclick=()=>{pOpen=r.dataset.c;people();scrollTo({top:0})})}
 }
 /* ---------- orders list ---------- */
+const otype=o=>(o.suit||"").replace(/ \(.*| only$/g,"");
+const DRANGE=[["","Any date"],["today","Today"],["7","Last 7 days"],["30","Last 30 days"],["month","This month"],["lmonth","Last month"],["year","This year"],["pick","Pick dates…"]];
+function dRange(){const d=new Date(),y=d.getFullYear(),m=d.getMonth(),day=new Date(y,m,d.getDate()).getTime(),D=864e5;
+ switch(fD){case"today":return[day,day+D];case"7":return[day-6*D,day+D];case"30":return[day-29*D,day+D];case"month":return[new Date(y,m,1).getTime(),new Date(y,m+1,1).getTime()];
+ case"lmonth":return[new Date(y,m-1,1).getTime(),new Date(y,m,1).getTime()];case"year":return[new Date(y,0,1).getTime(),new Date(y+1,0,1).getTime()];
+ case"pick":{const p=v=>{const[a,b,c]=v.split("-").map(Number);return new Date(a,b-1,c).getTime()};return[fD1?p(fD1):-Infinity,fD2?p(fD2)+D:Infinity]}}return null}
 function list(){
- const f=orders.filter(o=>!q||JSON.stringify([o.customer,o.no,o.phone,o.garment]).toLowerCase().includes(q.toLowerCase())).sort((a,b)=>b.created-a.created);
- app.innerHTML=`<div id="bs"></div><div class="card"><input type="search" id="q" placeholder="Search name, order no…" value="${esc(q)}"></div><div class="card">${f.length?f.map(o=>`<div class="o" data-n="${o.no}"><div><b>${esc(o.customer)}</b><br><small>${esc(o.no)} · ${esc(o.garment||"")} · ${o.due?"Due "+esc(o.due):"No due date"}</small></div>${(()=>{const[a,b]=chkDone(o);return b?`<span class="tag" style="border-color:var(--line);color:var(--mute)">${a}/${b} ✓</span>`:""})()}<span class="tag">${esc(o.status)}</span></div>`).join(""):'<p style="color:var(--mute)">No orders yet. Tap “New order”.</p>'}</div>`;
+ const r=dRange(),ql=q.trim().toLowerCase();
+ const f=orders.filter(o=>(!ql||JSON.stringify([o.customer,o.no,o.phone,o.garment]).toLowerCase().includes(ql))&&(!r||((o.created||0)>=r[0]&&(o.created||0)<r[1]))&&(!fT||otype(o)===fT)&&(!fS||o.status===fS)).sort((a,b)=>b.created-a.created);
+ const act=!!(fD||fT||fS),opt=(v,l,c)=>`<option value="${esc(v)}"${v===c?" selected":""}>${esc(l)}</option>`;
+ const fbar=`<div class="row" style="margin-top:8px"><select id="fD">${DRANGE.map(([v,l])=>opt(v,l,fD)).join("")}</select><select id="fT">${opt("","All order types",fT)}${SUITS.map(x=>x.n.replace(/ \(.*/,"")).map(n=>opt(n,n,fT)).join("")}</select><select id="fS">${opt("","All statuses",fS)}${STATUSES.map(n=>opt(n,n,fS)).join("")}</select></div>${fD==="pick"?`<div class="row" style="margin-top:8px"><label style="margin:0">From</label><input type="date" id="fD1" value="${esc(fD1)}" style="flex:1;width:auto"><label style="margin:0">To</label><input type="date" id="fD2" value="${esc(fD2)}" style="flex:1;width:auto"></div>`:""}${act||ql?`<div class="row" style="margin-top:8px;justify-content:space-between"><small style="color:var(--mute)">Showing ${f.length} of ${orders.length} orders</small>${act?`<button id="fX">Clear filters</button>`:""}</div>`:""}`;
+ app.innerHTML=`<div id="bs"></div><div class="card"><input type="search" id="q" placeholder="Search name, order no…" value="${esc(q)}">${fbar}</div><div class="card">${f.length?f.map((o,i)=>`<div class="o" data-n="${o.no}"><div style="flex:0 0 2.6em;align-self:stretch;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;border-right:1px solid var(--line);color:var(--mute);font-weight:600">${i+1}</div><div style="flex:1;min-width:0"><b>${esc(o.customer)}</b><br><small>${fdate(o.created)} · ${esc(o.no)} · ${esc(o.garment||"")} · ${o.due?"Due "+esc(o.due):"No due date"}</small></div>${(()=>{const[a,b]=chkDone(o);return b?`<span class="tag" style="border-color:var(--line);color:var(--mute)">${a}/${b} ✓</span>`:""})()}<span class="tag">${esc(o.status)}</span></div>`).join(""):(orders.length?'<p style="color:var(--mute)">No orders match.</p>':'<p style="color:var(--mute)">No orders yet. Tap “New order”.</p>')}</div>`;
+ const fo=(id,fn)=>{const e=$("#"+id);if(e)e.onchange=ev=>{fn(ev.target.value);list()}};
+ fo("fD",v=>fD=v);fo("fT",v=>fT=v);fo("fS",v=>fS=v);fo("fD1",v=>fD1=v);fo("fD2",v=>fD2=v);
+ if($("#fX"))$("#fX").onclick=()=>{fD=fT=fS=fD1=fD2="";list()};
  $("#q").oninput=e=>{q=e.target.value;list();const i=$("#q");i.focus();i.setSelectionRange(q.length,q.length)};
  bstrip();$$(".o").forEach(r=>r.onclick=()=>{cur=orders.find(o=>o.no===r.dataset.n);view="detail";render()});
 }
