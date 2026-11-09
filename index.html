@@ -129,9 +129,10 @@ async function snap(label,force){clearTimeout(snapT);try{if(!cat)return false;co
  if(await kvSet("snap:"+key,s)===false){snapErr="Not enough storage space left on this device for another copy.";return false}
  idx=idx.filter(x=>x.t!==key);idx.push({t:key,at:now,label,g:cat.garments.reduce((n,g)=>n+g.cats.length,0),o:orders.length,kb:Math.round(s.length/1024)});idx.sort((a,b)=>b.t-a.t);
  const drop=idx.slice(25);for(const x of drop)await kvDel("snap:"+x.t);idx=idx.slice(0,25);await kvSet("snapidx",idx);lastS=s;snapErr="";if(drop.length)pruneImgs(idx);return true}catch(e){snapErr=String(e&&e.message||e);return false}}
-addEventListener("visibilitychange",()=>{if(document.hidden)snap("Auto")});addEventListener("pagehide",()=>snap("Auto"));
+addEventListener("visibilitychange",()=>{if(document.hidden){try{window.__flushAuto&&window.__flushAuto()}catch(e){}snap("Auto")}});addEventListener("pagehide",()=>{try{window.__flushAuto&&window.__flushAuto()}catch(e){}snap("Auto")});
+document.addEventListener("keydown",e=>{if(e.key!=="Enter"||e.isComposing||view!=="form"||!window.__formNext)return;const t=e.target;if(!t||!t.matches||!t.matches("#app input,#app select,#app textarea"))return;if(t.matches("#qc,#cq,.xc,.xn,.ni,input[type=checkbox],input[type=button]"))return;if(t.tagName==="TEXTAREA"&&e.shiftKey)return;e.preventDefault();window.__formNext(t)});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
-let cat,orders=[],view="list",cur=null,editing=null,gid,sel={},q="",fD="",fD1="",fD2="",fT="",fS="",open=new Set(),dirty=false,prefill=null,pq="",pOpen=null;
+let formGen=0;let cat,orders=[],view="list",cur=null,editing=null,gid,sel={},q="",fD="",fD1="",fD2="",fT="",fS="",open=new Set(),dirty=false,prefill=null,pq="",pOpen=null;
 const app=$("#app"),dlg=$("#dlg"),dlg2=$("#dlg2");
 function ask(msg,o={}){return new Promise(res=>{dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md"><p style="font-family:system-ui,sans-serif;white-space:pre-wrap">${esc(msg)}</p>${o.input?`<input id="ai2" value="${esc(o.def||"")}">`:""}<div class="row" style="margin-top:12px"><button class="p" id="y">${o.ok||"OK"}</button>${o.cancel===false?"":'<button id="n">Cancel</button>'}</div></div></div>`;const done=v=>{dlg2.innerHTML="";res(v)};$("#y",dlg2).onclick=()=>done(o.input?$("#ai2",dlg2).value:true);const n=$("#n",dlg2);if(n)n.onclick=()=>done(o.input?null:false);if(o.input)$("#ai2",dlg2).focus()})}
 const say=m=>ask(m,{cancel:false});
@@ -185,7 +186,7 @@ function list(){
  const f=orders.filter(o=>(!ql||JSON.stringify([o.customer,o.no,o.phone,o.garment]).toLowerCase().includes(ql))&&(!r||((o.created||0)>=r[0]&&(o.created||0)<r[1]))&&(!fT||otype(o)===fT)&&(!fS||o.status===fS)).sort((a,b)=>b.created-a.created);
  const act=!!(fD||fT||fS),opt=(v,l,c)=>`<option value="${esc(v)}"${v===c?" selected":""}>${esc(l)}</option>`;
  const fbar=`<div class="row" style="margin-top:8px"><select id="fD">${DRANGE.map(([v,l])=>opt(v,l,fD)).join("")}</select><select id="fT">${opt("","All order types",fT)}${SUITS.map(x=>x.n.replace(/ \(.*/,"")).map(n=>opt(n,n,fT)).join("")}</select><select id="fS">${opt("","All statuses",fS)}${STATUSES.map(n=>opt(n,n,fS)).join("")}</select></div>${fD==="pick"?`<div class="row" style="margin-top:8px"><label style="margin:0">From</label><input type="date" id="fD1" value="${esc(fD1)}" style="flex:1;width:auto"><label style="margin:0">To</label><input type="date" id="fD2" value="${esc(fD2)}" style="flex:1;width:auto"></div>`:""}${act||ql?`<div class="row" style="margin-top:8px;justify-content:space-between"><small style="color:var(--mute)">Showing ${f.length} of ${orders.length} orders</small>${act?`<button id="fX">Clear filters</button>`:""}</div>`:""}`;
- app.innerHTML=`<div id="bs"></div><div class="card"><input type="search" id="q" placeholder="Search name, order no…" value="${esc(q)}">${fbar}</div><div class="card">${f.length?f.map((o,i)=>`<div class="o" data-n="${o.no}"><div style="flex:0 0 2.6em;align-self:stretch;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;border-right:1px solid var(--line);color:var(--mute);font-weight:600">${i+1}</div><div style="flex:1;min-width:0"><b>${esc(o.customer)}</b><br><small>${fdate(o.created)} · ${esc(o.no)} · ${esc(o.garment||"")} · ${o.due?"Due "+esc(o.due):"No due date"}</small></div>${(()=>{const[a,b]=chkDone(o);return b?`<span class="tag" style="border-color:var(--line);color:var(--mute)">${a}/${b} ✓</span>`:""})()}<span class="tag">${esc(o.status)}</span></div>`).join(""):(orders.length?'<p style="color:var(--mute)">No orders match.</p>':'<p style="color:var(--mute)">No orders yet. Tap “New order”.</p>')}</div>`;
+ app.innerHTML=`<div id="bs"></div><div class="card"><input type="search" id="q" placeholder="Search name, order no…" value="${esc(q)}">${fbar}</div><div class="card">${f.length?f.map((o,i)=>`<div class="o" data-n="${o.no}"><div style="flex:0 0 2.6em;align-self:stretch;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;border-right:1px solid var(--line);color:var(--mute);font-weight:600">${i+1}</div><div style="flex:1;min-width:0"><b>${esc(o.customer)||"<i style=\"font-weight:400\">(no name yet)</i>"}</b><br><small>${fdate(o.created)} · ${esc(o.no)} · ${esc(o.garment||"")} · ${o.due?"Due "+esc(o.due):"No due date"}</small></div>${(()=>{const[a,b]=chkDone(o);return b?`<span class="tag" style="border-color:var(--line);color:var(--mute)">${a}/${b} ✓</span>`:""})()}${o.draft?'<span class="tag" style="border-color:#c98a00;color:#c98a00">Draft</span>':""}<span class="tag">${esc(o.status)}</span></div>`).join(""):(orders.length?'<p style="color:var(--mute)">No orders match.</p>':'<p style="color:var(--mute)">No orders yet. Tap “New order”.</p>')}</div>`;
  const fo=(id,fn)=>{const e=$("#"+id);if(e)e.onchange=ev=>{fn(ev.target.value);list()}};
  fo("fD",v=>fD=v);fo("fT",v=>fT=v);fo("fS",v=>fS=v);fo("fD1",v=>fD1=v);fo("fD2",v=>fD2=v);
  if($("#fX"))$("#fX").onclick=()=>{fD=fT=fS=fD1=fD2="";list()};
@@ -325,9 +326,9 @@ function form(){
  <section class="tp" data-t="s" hidden><div class="card" style="padding:12px"><div class="row" id="gb" style="margin-bottom:10px"></div><div class="row" style="flex-wrap:nowrap"><input id="qc" placeholder="Quick add a code: type it (e.g. 0714) and press Enter" autocomplete="off" autocapitalize="characters"><button type="button" class="p" id="qb">Add</button></div><div id="qm" class="mute" style="margin-top:8px"></div><div id="xl"></div><button type="button" id="xa" style="margin-top:8px">+ Other code (not in catalog)</button></div><div class="sp" id="sp"><aside class="sl"><input type="search" id="cq" placeholder="Search categories, codes, names…"><div id="clist"></div></aside><div class="sm" id="spane"></div></div></section>
  <section class="tp" data-t="m" hidden>${mc}</section>
  <section class="tp" data-t="p" hidden>${pc}</section>
- <section class="tp" data-t="y" hidden><div class="card"><h2>Payment &amp; notes</h2><div class="grid"><div><label>Total</label><input id="price" inputmode="decimal"></div><div><label>Deposit</label><input id="deposit" inputmode="decimal"></div></div><div style="margin-top:12px"><label>Notes</label><textarea id="notes"></textarea></div></div></section>
+ <section class="tp" data-t="y" hidden><div class="card"><h2>Payment &amp; notes</h2><div class="grid"><div><label>Total</label><input id="price" inputmode="decimal"></div><div><label>Deposit</label><input id="deposit" inputmode="decimal"></div></div><div style="margin-top:12px"><label>Notes <span style="font-weight:400">(Shift+Enter for a new line)</span></label><textarea id="notes"></textarea></div></div></section>
  <section class="tp" data-t="r" hidden><div id="rv"></div></section>
- <div class="fb"><button class="p" id="save">${editing?"Save changes":"Save order"}</button><button id="cancel">Cancel</button></div>`;
+ <div class="fb"><button class="p" id="save">${editing&&!editing.draft?"Save changes":"Finish &amp; save order"}</button><button id="cancel">Close</button><span id="asv" class="mute" style="align-self:center;margin-left:auto;text-align:right">Saved automatically as you type</span></div>`;
  let ps={},notes={},curId=null,qs="",rareOpen=false,tab="c",extras=[],qmat=[],nodef=new Set(editing&&editing.nodef||[]);
  const layout=()=>{const M=MS(),s=SUITS.find(s=>s.n===$("#otype").value)||SUITS[0],ids=new Set(garmentsFor(s).map(x=>x.id));cat.garments.forEach(x=>{if(x.cats.some(c=>sel[c.id]))ids.add(x.id)});
   const fb={sets:[...(M.gmap.mj?M.gmap.mj.sets:[]),...(M.gmap.mp?M.gmap.mp.sets:[])],post:"Suit"};const sets=new Set(),posts=[];
@@ -394,13 +395,38 @@ function form(){
  $("#gb").onclick=e=>{const b=e.target.closest(".gp");if(b)setG(b.dataset.g)};
  $("#otype").onchange=()=>{applyLayout();applyCP();const a=allowed();if(!a.some(x=>x.id===gid))setG(a[0].id);else drawG()};
  const draw=()=>{const vs=visCats();curId=vs[0]&&vs[0].id;drawList();drawPane()};
- $("#cancel").onclick=()=>{if(editing){const o=editing;editing=null;cur=o;view="detail"}else view="list";render()};
+ /* auto-save: write the form to the order as it changes */
+ const hasContent=o=>!!(o.customer||o.phone||o.email||o.due||o.fabric||o.button||o.lining||o.height||o.lastbh||o.monothr||o.collarmono||o.price||o.deposit||o.notes||(o.picks||[]).length||(o.extras||[]).length||(o.msets||[]).length);
+ const myGen=++formGen;let target=editing||null,last=null,snapped=false,busy=false,closed=false;
+ const stamp=()=>{const el=$("#asv");if(el)el.textContent="✓ Saved automatically · "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})};
+ const autoSave=async force=>{if(closed||busy||!$("#customer"))return;busy=true;try{let{o}=collect(),str=JSON.stringify(o);
+   if(last===null){last=str;return}
+   if(str===last&&!force)return;if(str===last)return;
+   if(!target){if(!hasContent(o))return;const now=Date.now();target={no:"CS-"+now.toString(36).slice(-5).toUpperCase(),created:now,status:"New",chk:{},draft:true};orders.push(target)}
+   else if(editing&&!snapped){snapped=true;await snap("Before edit",1);({o}=collect());str=JSON.stringify(o)}
+   Object.assign(target,o);last=str;await saveOrd();stamp()}finally{busy=false}};
+ window.__flushAuto=()=>{if(view==="form")return autoSave(true)};
+ const iv=setInterval(()=>{if(myGen!==formGen||view!=="form"||closed){clearInterval(iv);return}autoSave().catch(()=>{})},1500);
+ setTimeout(()=>{if(last===null&&$("#customer")){try{last=JSON.stringify(collect().o)}catch(e){}}},0);
+ $("#cancel").onclick=async()=>{while(busy)await new Promise(r=>setTimeout(r,30));await autoSave(true).catch(()=>{});closed=true;if(editing){const o=editing;editing=null;cur=o;view="detail"}else view="list";render()};
  $("#save").onclick=async()=>{if(!$("#customer").value.trim()){say("Customer name is required.");return}
   const{o,miss}=collect();
   if(miss.length&&!await ask("These required measurements are empty: "+miss.join(", ")+". Save anyway?",{ok:"Save anyway"}))return;
-  if(editing){Object.assign(editing,o);cur=editing;editing=null;view="detail"}
+  closed=true;while(busy)await new Promise(r=>setTimeout(r,30));
+  if(target){Object.assign(target,o);delete target.draft;if(editing){cur=target;editing=null;view="detail"}else view="list"}
   else{const now=Date.now();Object.assign(o,{no:"CS-"+now.toString(36).slice(-5).toUpperCase(),created:now,status:"New",chk:{}});orders.push(o);view="list"}
   await saveOrd();render()};
+ /* Enter = next box */
+ const NEXT={c:"s",s:"m",m:"p",p:"y",y:"r"};
+ window.__formNext=t=>{const tp=t.closest(".tp");if(!tp)return;
+  const list=[...tp.querySelectorAll("input,select,textarea")].filter(x=>x.offsetParent&&!x.disabled&&x.type!=="hidden"&&x.type!=="checkbox"&&!x.matches("#qc,#cq,.xc,.xn,.ni"));
+  const i=list.indexOf(t);
+  if(i>=0&&i<list.length-1){const n=list[i+1];n.focus();try{n.select&&n.select()}catch(e){}return}
+  const nt=NEXT[tp.dataset.t];if(!nt)return;showTab(nt);
+  const f=nt==="s"?$("#qc"):[...$$(`.tp[data-t="${nt}"] input,.tp[data-t="${nt}"] select,.tp[data-t="${nt}"] textarea`)].find(x=>x.offsetParent&&x.type!=="checkbox"&&!x.matches("#cq,.ni"));
+  if(f){f.focus();try{f.select&&f.select()}catch(e){}}else if(document.activeElement)document.activeElement.blur()};
+ $$("#app input:not([type=checkbox]),#app select").forEach(x=>{if(!x.matches("#qc,#cq,.ni,.xc,.xn"))x.setAttribute("enterkeyhint","next")});
+ $("#notes").setAttribute("enterkeyhint","next");
  $("#otype").value=(editing&&editing.suit&&editing.suit.replace(/ only$/,""))||(editing&&suitOf(editing))||SUITS[0].n;{const a=allowed();if(!a.some(x=>x.id===gid))gid=a[0].id}
  applyLayout();draw();drawG();
  if(editing){const o=editing,M=MS();
@@ -435,7 +461,7 @@ function detail(){
  const hx=`<div class="noprint"><label>Status</label><select id="st">${STATUSES.map(s=>`<option${s===o.status?" selected":""}>${s}</option>`).join("")}</select></div>`;
  app.innerHTML=`<div class="row noprint" style="margin-bottom:12px"><button id="back">← Orders</button><button class="p" id="ex2">Export / share</button><button id="ed">Edit order</button><button id="del">Delete order</button></div>
  <div class="card noprint stk" id="pgb"><div class="row" style="justify-content:space-between"><div><b>Confirmed in factory order:</b> <span id="pn"></span></div><div class="row"><button id="ca">Check all</button><button id="cn">Clear</button></div></div><div class="pbar"><i></i></div></div>
- <div id="ordv">${ordGrid(o,true,hx)}</div>`;
+ ${o.draft?'<div class="card noprint" style="border-color:#c98a00;font-family:system-ui,sans-serif">⚠ <b>Draft</b> — this order was saved automatically but not finished. Tap <b>Edit order</b>, then <b>Finish &amp; save order</b>.</div>':""}<div id="ordv">${ordGrid(o,true,hx)}</div>`;
  const upd=()=>{const[a,b]=chkDone(o);$("#pn").textContent=b?`${a} of ${b}`:"nothing to check";$("#pgb i").style.width=(b?a/b*100:0)+"%"};upd();
  $("#back").onclick=()=>{view="list";render()};
  $("#ex2").onclick=()=>shareDlg(o);
