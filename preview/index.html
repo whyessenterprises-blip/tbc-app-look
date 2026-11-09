@@ -418,7 +418,7 @@ function detail(){
  const maybeSent=async()=>{const[a,b]=chkDone(o);if(b&&a===b&&o.status==="New"&&!o.askedSent){o.askedSent=true;await saveOrd();if(await ask("Everything is confirmed in the factory order. Mark this order as “Sent to factory”?",{ok:"Yes"})){o.status="Sent to factory";await saveOrd();detail()}}};
  $("#ca").onclick=async()=>{chkKeys(o).forEach(k=>o.chk[k]=true);await saveOrd();detail();maybeSent()};
  $("#cn").onclick=async()=>{if(await ask("Clear all check marks on this order?",{ok:"Clear"})){o.chk={};o.askedSent=false;await saveOrd();detail()}};
- $("#ordv").onclick=async e=>{const x=e.target.closest(".dx");if(!x)return;e.preventDefault();const id=x.dataset.id;o.defs=(o.defs||[]).filter(d=>d.id!==id);o.nodef=[...new Set([...(o.nodef||[]),id])];await saveOrd();detail()};
+ $("#ordv").onclick=async e=>{const x=e.target.closest(".dx");if(!x)return;e.preventDefault();const id=x.dataset.id;o.defs=(o.defs||[]).filter(d=>d.id!==id);o.nodef=[...new Set([...(o.nodef||[]),id])];const y=scrollY;await saveOrd();detail();const dl=$("#ordv .dfl");if(dl)dl.closest("details").open=true;scrollTo(0,y)};
  $("#ordv").onchange=async e=>{const inp=e.target.closest("input[data-k]");if(!inp)return;o.chk[inp.dataset.k]=inp.checked;const box=inp.closest(".gc,.pc2,.mset");if(box)box.classList.toggle("done",inp.checked);upd();await saveOrd();
   maybeSent()};
  $("#del").onclick=async()=>{if(await ask("Delete this order?",{ok:"Delete"})){await snap("Before delete",1);orders=orders.filter(x=>x!==o);await saveOrd();view="list";render()}};
