@@ -136,6 +136,7 @@ let formGen=0,appSet={};let cat,orders=[],view="list",cur=null,editing=null,gid,
 const app=$("#app"),dlg=$("#dlg"),dlg2=$("#dlg2");
 function ask(msg,o={}){return new Promise(res=>{dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md"><p style="font-family:system-ui,sans-serif;white-space:pre-wrap">${esc(msg)}</p>${o.input?`<input id="ai2" value="${esc(o.def||"")}">`:""}<div class="row" style="margin-top:12px"><button class="p" id="y">${o.ok||"OK"}</button>${o.cancel===false?"":'<button id="n">Cancel</button>'}</div></div></div>`;const done=v=>{dlg2.innerHTML="";res(v)};$("#y",dlg2).onclick=()=>done(o.input?$("#ai2",dlg2).value:true);const n=$("#n",dlg2);if(n)n.onclick=()=>done(o.input?null:false);if(o.input)$("#ai2",dlg2).focus()})}
 const say=m=>ask(m,{cancel:false});
+function choose3(msg,a,b){return new Promise(res=>{dlg2.innerHTML=`<div class="ov" style="z-index:30"><div class="md"><p style="font-family:system-ui,sans-serif;white-space:pre-wrap;margin-top:0">${msg}</p><div class="col" style="margin-top:12px"><button class="p" id="c3a">${a}</button><button id="c3b">${b}</button><button id="c3c">Cancel</button></div></div></div>`;const d=v=>{dlg2.innerHTML="";res(v)};$("#c3a",dlg2).onclick=()=>d("add");$("#c3b",dlg2).onclick=()=>d("replace");$("#c3c",dlg2).onclick=()=>d("cancel")})}
 const G=()=>cat.garments.find(g=>g.id===gid)||cat.garments[0];
 const saveCat=()=>{sched();return kvSet("cat",cat)},saveOrd=()=>{sched();kvSet("ordT",Date.now());return kvSet("orders",orders)};
 const seed=()=>JSON.parse($("#seed").textContent);
@@ -325,7 +326,7 @@ function form(){
  <section class="tp" data-t="c"><div class="card"><h2>Customer</h2><div class="grid"><div><label>Name *</label><input id="customer" autocomplete="off"><div id="csug" class="csug"></div><div id="cmsg"></div></div><div><label>Height</label><input id="height"></div><div><label>Phone</label><input id="phone" type="tel"></div><div><label>Email</label><input id="email" type="email"></div><div><label>Due date</label><input id="due" type="date"></div><div><label>Factory order no.</label><div class="row" style="flex-wrap:nowrap;gap:6px"><input id="ordno" placeholder="e.g. USLSE2611000012" autocapitalize="characters" autocomplete="off"><button type="button" id="ordnx" title="Fill in the next number">Next</button></div><div id="ordmsg" class="mute" style="margin-top:2px"></div></div></div></div>
  <div class="card"><h2>Garment details</h2><label>Order type</label><select id="otype">${SUITS.map(s=>`<option value="${esc(s.n)}">${esc(s.n)}</option>`).join("")}</select>
  <div class="grid"><div><label>Quantity <span style="font-weight:400">(how many)</span></label><input id="qty" inputmode="numeric" placeholder="1" maxlength="3"></div><div><label>Fabric / code</label><input id="fabric"></div><div><label>Button</label><input id="button"></div><div><label>Lining</label><input id="lining"></div><div><label>Last buttonhole thread</label><input id="lastbh"></div><div><label>Monogram thread</label><input id="monothr"></div><div><label>Collar monogram</label><input id="collarmono"></div></div></div></section>
- <section class="tp" data-t="s" hidden><div class="card" style="padding:12px"><div class="row" id="gb" style="margin-bottom:10px"></div><div class="row" style="flex-wrap:nowrap"><input id="qc" placeholder="Quick add a code: type it (e.g. 0714) and press Enter" autocomplete="off" autocapitalize="characters"><button type="button" class="p" id="qb">Add</button></div><div id="qm" class="mute" style="margin-top:8px"></div><div id="xl"></div><button type="button" id="xa" style="margin-top:8px">+ Other code (not in catalog)</button></div><div class="sp" id="sp"><aside class="sl"><input type="search" id="cq" placeholder="Search categories, codes, names…"><div id="clist"></div></aside><div class="sm" id="spane"></div></div></section>
+ <section class="tp" data-t="s" hidden><div class="card" style="padding:12px"><div class="row" id="gb" style="margin-bottom:10px"></div><div class="row" style="flex-wrap:nowrap"><input id="qc" placeholder="Quick add a code: type it (e.g. 0714) and press Enter" autocomplete="off" autocapitalize="characters"><button type="button" class="p" id="qb">Add</button></div><div id="qm" class="mute" style="margin-top:8px"></div><div id="xl"></div><button type="button" id="xa" style="margin-top:8px">+ Other code (not in catalog)</button></div><div class="sp" id="sp"><aside class="sl"><input type="search" id="cq" placeholder="Search codes or descriptions (typos OK)…"><div id="clist"></div></aside><div class="sm" id="spane"></div></div></section>
  <section class="tp" data-t="m" hidden>${mc}</section>
  <section class="tp" data-t="p" hidden>${pc}</section>
  <section class="tp" data-t="y" hidden><div class="card"><h2>Payment &amp; notes</h2><div class="grid"><div><label>Total</label><input id="price" inputmode="decimal"></div><div><label>Deposit</label><input id="deposit" inputmode="decimal"></div></div><div style="margin-top:12px"><label>Notes <span style="font-weight:400">(Shift+Enter for a new line)</span></label><textarea id="notes"></textarea></div></div></section>
@@ -340,17 +341,19 @@ function form(){
  const applyLayout=()=>{const L=layout();$$(".msw").forEach(d=>{d.style.display=L.sets.includes(+d.dataset.w)?"":"none"});drawPost()};drawPost();
  $("#post").onclick=e=>{const b=e.target.closest(".pc");if(!b)return;ps[b.dataset.g+":"+b.dataset.r]=+b.dataset.o;drawPost()};
  const curCat=()=>G().cats.find(c=>c.id===curId);
- const visCats=()=>{const g=G(),f=c=>!qs||c.name.toLowerCase().includes(qs)||c.items.some(i=>(i.code+" "+i.name).toLowerCase().includes(qs));return[...g.cats.filter(c=>!c.off&&f(c)),...g.cats.filter(c=>c.off&&f(c))]};
+ let fzKey="",fzS={},fzB={};
+ const fzOf=()=>{const k=qs+"|"+gid;if(k!==fzKey){fzKey=k;fzS={};fzB={};if(qs)fzSearch(qs,"cur").forEach(r=>{fzS[r.i.id]=r.score;if(!(r.c.id in fzB)||r.score>fzB[r.c.id])fzB[r.c.id]=r.score})}return fzS};
+ const visCats=()=>{const g=G();fzOf();const f=c=>!qs||c.id in fzB,srt=a=>qs?a.map((c,k)=>[c,k]).sort((x,y)=>(fzB[y[0].id]-fzB[x[0].id])||x[1]-y[1]).map(x=>x[0]):a;return[...srt(g.cats.filter(c=>!c.off&&f(c))),...srt(g.cats.filter(c=>c.off&&f(c)))]};
  const drawList=()=>{const vs=visCats(),on=vs.filter(c=>!c.off),off=vs.filter(c=>c.off);
-  const row=c=>{const it=c.items.find(i=>i.id===sel[c.id]);return `<button type="button" class="cr${c.id===curId?" act":""}${it?" ch":""}" data-c="${c.id}"><span>${esc(c.name)}</span>${it?`<em>${esc(dc(it.code))}</em>`:(()=>{const d0=c.items.filter(i=>i.def),d=d0.filter(i=>!nodef.has(i.id));return d.length?`<em class="dv" title="Factory default">△ ${esc(d.map(i=>dc(i.code)).join(", "))}</em>`:d0.length?`<em class="dv" title="Factory default turned off for this order" style="text-decoration:line-through">△ off</em>`:"<em></em>"})()}</button>`};
+  const row=c=>{const it=(sel[c.id]||[]).map(id=>c.items.find(i=>i.id===id)).filter(Boolean);return `<button type="button" class="cr${c.id===curId?" act":""}${it.length?" ch":""}" data-c="${c.id}"><span>${esc(c.name)}</span>${it.length?`<em>${esc(it.map(x=>dc(x.code)).join(", "))}</em>`:(()=>{const d0=c.items.filter(i=>i.def),d=d0.filter(i=>!nodef.has(i.id));return d.length?`<em class="dv" title="Factory default">△ ${esc(d.map(i=>dc(i.code)).join(", "))}</em>`:d0.length?`<em class="dv" title="Factory default turned off for this order" style="text-decoration:line-through">△ off</em>`:"<em></em>"})()}</button>`};
   const nOff=off.filter(c=>sel[c.id]).length,open=rareOpen||!!qs||off.some(c=>c.id===curId);
   $("#clist").innerHTML=on.map(row).join("")+(off.length?`<button type="button" class="rgh" id="rgh">${open?"▾":"▸"} Rarely changed — defaults (${off.length})${nOff?` · ${nOff} chosen`:""}</button>${open?off.map(row).join(""):""}`:"")||'<p class="mute" style="padding:6px">No matches.</p>';
-  const n=Object.values(sel).filter(Boolean).length+extras.filter(x=>x.code.trim()||x.note.trim()).length;$("#sc").textContent=n?"("+n+")":"";drawG()};
- const paintPane=()=>{const c=curCat();if(!c)return;const id=sel[c.id],it=c.items.find(i=>i.id===id);$$("#spane .tile").forEach(t=>t.classList.toggle("on",t.dataset.i===id));
-  const chb=$("#chb");chb.innerHTML=it?`<div class="nt"><div class="row" style="gap:10px;flex-wrap:nowrap">${it.img?`<img src="${it.img}" alt="" style="width:44px;height:44px;object-fit:contain;background:#fff;border-radius:6px">`:""}<div style="flex:1;min-width:0;font-family:system-ui,sans-serif"><b>${esc(dc(it.code))}</b> ${esc(it.name)}</div><button type="button" class="clr">Clear</button></div><input class="ni" maxlength="300" placeholder="Note / specification for this option (e.g. which lining)…" style="margin-top:8px"></div>`:(()=>{const d=c.items.filter(i=>i.def);return d.length?`<div class="dfb"><div><b>Nothing chosen here. Factory default${d.length>1?"s":""} (△ in the book):</b></div><div class="row" style="margin-top:6px">${d.map(i=>`<button type="button" class="dfc${nodef.has(i.id)?"":" on"}" data-d="${i.id}">${nodef.has(i.id)?"✕":"✓"} △ ${esc(dc(i.code))} <small>${esc(i.name)}</small></button>`).join("")}</div><div class="mute" style="margin-top:6px">Tap to turn a default off for this order only (for example when you typed the code under Other codes, or only one of several defaults applies).</div></div>`:""})();
-  if(it)$(".ni",chb).value=notes[c.id]||""};
- const drawPane=()=>{const c=curCat(),p=$("#spane");if(!c){p.innerHTML='<p class="mute">No categories yet. Add them in Catalog.</p>';return}
-  const nm=c.name.toLowerCase().includes(qs),its=qs&&!nm?c.items.filter(i=>(i.code+" "+i.name).toLowerCase().includes(qs)):c.items,df1=a=>[...a.filter(i=>i.def),...a.filter(i=>!i.def)],b=df1(its.filter(i=>i.basic)),r=df1(its.filter(i=>!i.basic)),it=c.items.find(i=>i.id===sel[c.id]);
+  const n=Object.values(sel).reduce((a,v)=>a+(v?v.length:0),0)+extras.filter(x=>x.code.trim()||x.note.trim()).length;$("#sc").textContent=n?"("+n+")":"";drawG()};
+ const paintPane=()=>{const c=curCat();if(!c)return;const ids=sel[c.id]||[],its=ids.map(id=>c.items.find(i=>i.id===id)).filter(Boolean);$$("#spane .tile").forEach(t=>t.classList.toggle("on",ids.includes(t.dataset.i)));
+  const chb=$("#chb");chb.innerHTML=its.length?(its.length>1?`<div class="mute" style="margin:0 0 6px;color:#c98a00"><b>${its.length} options chosen in this category.</b> Each one is listed on the order.</div>`:"")+its.map(it=>`<div class="nt" data-i="${it.id}" style="margin-bottom:8px"><div class="row" style="gap:10px;flex-wrap:nowrap">${it.img?`<img src="${it.img}" alt="" style="width:44px;height:44px;object-fit:contain;background:#fff;border-radius:6px">`:""}<div style="flex:1;min-width:0;font-family:system-ui,sans-serif"><b>${esc(dc(it.code))}</b> ${esc(it.name)}</div><button type="button" class="clr" data-i="${it.id}">${its.length>1?"Remove":"Clear"}</button></div><input class="ni" data-i="${it.id}" maxlength="300" placeholder="Note / specification for this option (e.g. which lining)…" style="margin-top:8px"></div>`).join(""):(()=>{const d=c.items.filter(i=>i.def);return d.length?`<div class="dfb"><div><b>Nothing chosen here. Factory default${d.length>1?"s":""} (△ in the book):</b></div><div class="row" style="margin-top:6px">${d.map(i=>`<button type="button" class="dfc${nodef.has(i.id)?"":" on"}" data-d="${i.id}">${nodef.has(i.id)?"✕":"✓"} △ ${esc(dc(i.code))} <small>${esc(i.name)}</small></button>`).join("")}</div><div class="mute" style="margin-top:6px">Tap to turn a default off for this order only (for example when you typed the code under Other codes, or only one of several defaults applies).</div></div>`:""})();
+  its.forEach(it=>{const ni=$(`.ni[data-i="${it.id}"]`,chb);if(ni)ni.value=notes[it.id]||""})};
+ const drawPane=()=>{const c=curCat(),p=$("#spane");if(!c){p.innerHTML=qs?'<p class="mute">Nothing found. Try fewer or shorter words, or just the first letters.</p>':'<p class="mute">No categories yet. Add them in Catalog.</p>';return}
+  fzOf();const its=qs?c.items.filter(i=>i.id in fzS).sort((x,y)=>fzS[y.id]-fzS[x.id]):c.items,df1=a=>[...a.filter(i=>i.def),...a.filter(i=>!i.def)],b=df1(its.filter(i=>i.basic)),r=df1(its.filter(i=>!i.basic)),it=c.items.find(i=>(sel[c.id]||[]).includes(i.id)&&!i.basic);
   p.innerHTML=`<div class="ph"><button type="button" class="bk2">‹ Categories</button><h2>${esc(c.name)}</h2><button type="button" class="pv">‹ Prev</button><button type="button" class="p nx">Next ›</button></div><div id="chb"></div>${b.length?`<div class="tiles">${b.map(tile).join("")}</div>`:""}${r.length?`<details class="more"${!b.length||qs||(it&&!it.basic)?" open":""}><summary>${b.length?"More options":"Options"} (${r.length})</summary><div class="tiles">${r.map(tile).join("")}</div></details>`:""}${!its.length?'<p class="mute">No options in this category yet.</p>':""}<div class="ph" style="margin-top:12px"><button type="button" class="pv">‹ Prev</button><button type="button" class="p nx">Next ›</button></div>`;paintPane()};
  const pick=id=>{curId=id;$("#sp").classList.add("pane");drawList();drawPane()};
  const go=d=>{const vs=visCats();if(!vs.length)return;const i=vs.findIndex(c=>c.id===curId),n=vs[(i+d+vs.length)%vs.length];curId=n.id;drawList();drawPane();scrollTo({top:0})};
@@ -358,16 +361,23 @@ function form(){
  $("#spane").onclick=e=>{const c=curCat();if(!c)return;
   if(e.target.closest(".nx"))return go(1);if(e.target.closest(".pv"))return go(-1);
   if(e.target.closest(".bk2")){$("#sp").classList.remove("pane");return}
-  if(e.target.closest(".clr")){delete notes[c.id];sel[c.id]=undefined;paintPane();drawList();return}
+  const clr=e.target.closest(".clr");if(clr){const id=clr.dataset.i,n=(sel[c.id]||[]).filter(x=>x!==id);delete notes[id];if(n.length)sel[c.id]=n;else delete sel[c.id];paintPane();drawList();return}
   const dfc=e.target.closest(".dfc");if(dfc){const k=dfc.dataset.d;nodef.has(k)?nodef.delete(k):nodef.add(k);paintPane();drawList();return}
-  const t=e.target.closest(".tile");if(!t)return;const prev=sel[c.id];sel[c.id]=prev===t.dataset.i?undefined:t.dataset.i;if(sel[c.id]!==prev)delete notes[c.id];paintPane();drawList()};
- $("#spane").oninput=e=>{const ni=e.target.closest(".ni");if(ni&&curId)notes[curId]=ni.value};
- $("#cq").oninput=e=>{qs=e.target.value.toLowerCase().trim();const vs=visCats();if(!vs.some(c=>c.id===curId))curId=vs[0]&&vs[0].id;drawList();drawPane()};
+  const t=e.target.closest(".tile");if(!t)return;pickTile(c,t.dataset.i)};
+ const nameOf=(c,id)=>{const x=c.items.find(i=>i.id===id);return x?`<b>${esc(dc(x.code))}</b> — ${esc(x.name)}`:""};
+ const pickTile=async(c,id)=>{const cur=sel[c.id]||[];
+  if(cur.includes(id)){const n=cur.filter(x=>x!==id);delete notes[id];if(n.length)sel[c.id]=n;else delete sel[c.id];paintPane();drawList();return}
+  if(cur.length){const r=await choose3(`“${esc(c.name)}” already has ${cur.length>1?cur.length+" options":"an option"} chosen:\n${cur.map(x=>"• "+nameOf(c,x)).join("\n")}\n\nYou tapped:\n• ${nameOf(c,id)}\n\nDo you want to choose this one as an ADDITIONAL option as well?`.replace(/\n/g,"<br>"),"Yes — add as an additional option",cur.length>1?"Replace all with this one":"Replace the first one with this one");
+   if(r==="cancel")return;if(r==="replace"){cur.forEach(x=>delete notes[x]);sel[c.id]=[id]}else sel[c.id]=[...cur,id]}
+  else sel[c.id]=[id];
+  paintPane();drawList()};
+ $("#spane").oninput=e=>{const ni=e.target.closest(".ni");if(ni&&ni.dataset.i)notes[ni.dataset.i]=ni.value};
+ $("#cq").oninput=e=>{qs=e.target.value.toLowerCase().trim();const vs=visCats();if(qs||!vs.some(c=>c.id===curId))curId=vs[0]&&vs[0].id;drawList();drawPane()};
  const ordGs=()=>{const s=SUITS.find(x=>x.n===$("#otype").value)||SUITS[0],ids=new Set(s.k.length?garmentsFor(s).map(x=>x.id):[]);cat.garments.forEach(x=>{if(x.cats.some(c=>sel[c.id]))ids.add(x.id)});if(!ids.size)ids.add(G().id);return cat.garments.filter(x=>ids.has(x.id))};
  const collect=()=>{const v=id=>$("#"+id).value.trim(),g=G(),M=MS(),msets=[],miss=[];
   M.sets.forEach((s,si)=>{const w=$(`.msw[data-w="${si}"]`);if(w&&w.style.display==="none")return;const vals={};let any=0;s.fields.forEach((f,fi)=>{const el=$(`[data-si="${si}"][data-fi="${fi}"]`);const x=el?el.value.trim():"";if(x){vals[f.n]=x;any=1}});if(any){s.fields.forEach(f=>{if(f.req&&!vals[f.n])miss.push(s.name+": "+f.n)});msets.push({name:s.name,vals})}});
   const o={msets,method:$("#mm").value,posture:layout().posts.flatMap(g=>PG(M,g).map((r,ri)=>({n:r.n,v:r.opts[ps[g+":"+ri]||0],d:!ps[g+":"+ri],gp:g}))),garment:"",measurements:{},
-   picks:cat.garments.flatMap(gg=>gg.cats.map(c=>{const i=c.items.find(x=>x.id===sel[c.id]);return i&&{g:gg.name,cat:c.name,code:i.code,name:i.name,id:i.id,note:(notes[c.id]||"").trim()}}).filter(Boolean)),
+   picks:cat.garments.flatMap(gg=>gg.cats.flatMap(c=>(sel[c.id]||[]).map(id=>{const i=c.items.find(x=>x.id===id);return i&&{g:gg.name,cat:c.name,code:i.code,name:i.name,id:i.id,note:(notes[i.id]||"").trim()}}).filter(Boolean))),
    extras:extras.map(x=>({code:x.code.trim(),note:x.note.trim()})).filter(x=>x.code||x.note),
    nodef:[...nodef],defs:ordGs().flatMap(gg=>gg.cats.filter(c=>!sel[c.id]).flatMap(c=>c.items.filter(i=>i.def&&!nodef.has(i.id)).map(i=>({g:gg.name,cat:c.name,code:i.code,name:i.name,id:i.id}))))};
   ["customer","phone","email","due","ordno","fabric","button","lining","height","lastbh","monothr","collarmono","price","deposit","notes","qty"].forEach(k=>o[k]=v(k));o.qty=(()=>{const n=parseInt(o.qty,10);return n>1?String(Math.min(n,999)):""})();o.ordno=(o.ordno||"").toUpperCase().replace(/\s+/g,"");o.suit=$("#otype").value;const gn=[...new Set(o.picks.map(p=>p.g))];o.garment=(gn.length?gn:[g.name]).join(" + ");return{o,miss}};
@@ -377,7 +387,13 @@ function form(){
  const nc=s=>String(s).toUpperCase().replace(/[^A-Z0-9]/g,"");
  const findCode=s=>{const n=nc(s),r=[];if(!n)return r;const gs=[G(),...cat.garments.filter(x=>x.id!==gid)];gs.forEach(g=>g.cats.forEach(c=>c.items.forEach(i=>{const m=nc(i.code);if(m===n||(m.length===n.length+1&&m.endsWith(n)))r.push({c,i,g})})));return r};
  const drawX=()=>{$("#xl").innerHTML=extras.map((x,i)=>`<div class="xr" data-i="${i}"><input class="xc" placeholder="Code" value="${esc(x.code)}"><input class="xn" placeholder="Description / spec" value="${esc(x.note)}"><button type="button" class="xk" title="Add this code to the catalog" style="flex:none;padding:0 10px">+ Catalog</button><button type="button" class="xd" aria-label="Remove">×</button></div>`).join("");drawList()};
- const applyPick=(c,i,g)=>{if(g&&g.id!==gid){gid=g.id;qs="";$("#cq").value=""}if(sel[c.id]!==i.id){sel[c.id]=i.id;delete notes[c.id]}curId=c.id;drawG();$("#sp").classList.add("pane");drawList();drawPane();$("#qm").innerHTML=`✓ Added <b>${esc(dc(i.code))}</b> · ${esc(c.name)} — ${esc(i.name)}. Type a note below if it needs one, or press Enter.`;$("#qc").value="";qmat=[];const ni=$(".ni");if(ni)ni.focus()};
+ const applyPick=async(c,i,g)=>{if(g&&g.id!==gid){gid=g.id;qs="";$("#cq").value=""}
+  const cur=sel[c.id]||[];let added="";
+  if(cur.includes(i.id)){added="was already chosen"}
+  else if(cur.length){const r=await choose3(`“${esc(c.name)}” already has ${cur.length>1?cur.length+" options":"an option"} chosen:<br>${cur.map(x=>"• "+nameOf(c,x)).join("<br>")}<br><br>You typed:<br>• <b>${esc(dc(i.code))}</b> — ${esc(i.name)}<br><br>Do you want to choose this one as an ADDITIONAL option as well?`,"Yes — add as an additional option",cur.length>1?"Replace all with this one":"Replace the first one with this one");
+   if(r==="cancel"){$("#qc").focus();return}if(r==="replace"){cur.forEach(x=>delete notes[x]);sel[c.id]=[i.id];added="replaced the earlier choice"}else{sel[c.id]=[...cur,i.id];added="added as an additional option"}}
+  else{sel[c.id]=[i.id];added="added"}
+  curId=c.id;drawG();$("#sp").classList.add("pane");drawList();drawPane();$("#qm").innerHTML=`✓ <b>${esc(dc(i.code))}</b> · ${esc(c.name)} — ${esc(i.name)}: ${added}. Type a note below if it needs one, or press Enter.`;$("#qc").value="";qmat=[];const ni=$(`.ni[data-i="${i.id}"]`)||$(".ni");if(ni)ni.focus()};
  const quickAdd=()=>{const raw=$("#qc").value.trim();if(!raw)return;const m=findCode(raw);
   if(m.length===1)return applyPick(m[0].c,m[0].i,m[0].g);
   if(m.length>1){qmat=m;$("#qm").innerHTML=`<div>${m.length} matches — tap the right one:</div>`+m.map((x,k)=>`<button type="button" class="qpick" data-k="${k}" style="display:block;width:100%;text-align:left;margin-top:6px;height:auto;padding:8px 12px">${esc(dc(x.i.code))} · ${esc(x.g.name)} · ${esc(x.c.name)} — ${esc(x.i.name)}</button>`).join("");return}
@@ -390,7 +406,7 @@ function form(){
   const ex=findCode(x.code.trim());if(ex.length){const m=ex[0];say(`${dc(m.i.code)} is already in the catalog (${m.g.name} · ${m.c.name}). It was chosen from the catalog instead.`);extras.splice(idx,1);applyPick(m.c,m.i,m.g);drawX();return}
   const gs=ordGs(),c0=curCat()||(G().cats[0]);if(!gs.some(g=>g.id===gid))gid=gs[0].id;
   itemDlg(c0,{_new:true,code:x.code.trim().toUpperCase(),name:(x.note||"").trim(),img:null,basic:false},(it,t,g)=>{const i2=extras.indexOf(x);let msg;
-   if(!sel[t.id]){sel[t.id]=it.id;if(i2>=0)extras.splice(i2,1);msg=`Added to the catalog (${g.name} · ${t.name}) and chosen in this order.`}
+   if(!sel[t.id]){sel[t.id]=[it.id];if(i2>=0)extras.splice(i2,1);msg=`Added to the catalog (${g.name} · ${t.name}) and chosen in this order.`}
    else msg=`Added to the catalog (${g.name} · ${t.name}). That category already has a code chosen in this order, so this one stays under Other codes.`;
    drawX();drawList();drawPane();drawG();$("#qm").textContent="✓ "+msg},gs);return}
   const b=e.target.closest(".xd");if(!b)return;extras.splice(+b.closest(".xr").dataset.i,1);drawX()};
@@ -448,7 +464,7 @@ function form(){
   if(o.method&&[...$("#mm").options].some(x=>x.value===o.method))$("#mm").value=o.method;
   (o.msets||[]).forEach(s=>{const si=M.sets.findIndex(x=>x.name===s.name);if(si<0)return;M.sets[si].fields.forEach((fl,fi)=>{if(s.vals[fl.n]!=null){const el=$(`[data-si="${si}"][data-fi="${fi}"]`);if(el)el.value=s.vals[fl.n]}})});
   (o.posture||[]).forEach(p=>{const g=p.gp||"Suit",rows=PG(M,g),ri=rows.findIndex(r=>r.n===p.n);if(ri<0)return;const oi=rows[ri].opts.indexOf(p.v);if(oi>0)ps[g+":"+ri]=oi});applyLayout();
-  (o.picks||[]).forEach(p=>{const c=cat.garments.flatMap(x=>x.cats).find(c=>c.items.some(i=>i.id===p.id));if(c){sel[c.id]=p.id;if(p.note)notes[c.id]=p.note}else extras.push({code:p.code,note:[p.name,p.cat&&"("+p.cat+")",p.note].filter(Boolean).join(" ")})});
+  (o.picks||[]).forEach(p=>{const c=cat.garments.flatMap(x=>x.cats).find(c=>c.items.some(i=>i.id===p.id));if(c){(sel[c.id]=sel[c.id]||[]).push(p.id);if(p.note)notes[p.id]=p.note}else extras.push({code:p.code,note:[p.name,p.cat&&"("+p.cat+")",p.note].filter(Boolean).join(" ")})});
   (o.extras||[]).forEach(x=>extras.push({code:x.code,note:x.note}));
   drawX();drawPane();drawG()}
  /* returning customer: suggest matches while typing the name, fill saved measurements + posture */
@@ -525,15 +541,51 @@ async function histDlg(){const idx=(await kvGet("snapidx"))||[];
  $("#hx",dlg2).onclick=()=>dlg2.innerHTML="";
  $("#hn",dlg2).onclick=async()=>{const ok=await snap("Saved by you",1);dlg2.innerHTML="";if(ok)histDlg();else say("Could not save a copy: "+snapErr)};
  $("#hl",dlg2).onclick=async e=>{const b=e.target.closest("button[data-t]");if(!b)return;const k=+b.dataset.t,x=idx.find(i=>i.t===k);dlg2.innerHTML="";if(!await ask(`Restore the copy from ${new Date(x.at||k).toLocaleString()}? Your current work is saved to history first.`,{ok:"Restore"}))return;await snap("Before restore",1);const s=await kvGet("snap:"+k);if(!s){say("That copy could not be found.");return}try{const d=JSON.parse(s),miss=await unpackCat(d.cat);cat=d.cat;applyDefs(cat);orders=d.orders||[];gid=cat.garments[0].id;await kvSet("cat",cat);await kvSet("orders",orders);lastS="";catalog();say(miss?`Restored. ${miss} diagrams could not be recovered.`:"Restored.")}catch(x){say("That copy could not be read.")}}}
+/* ---------- fuzzy catalog search ---------- */
+let catQ="",catSc="all";
+const fzN=t=>String(t||"").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+const fzSk=w=>w.replace(/[aeiouy]/g,"").replace(/(.)\1+/g,"$1");
+function fzLev(a,b,max){const al=a.length,bl=b.length;if(Math.abs(al-bl)>max)return max+1;let prev=new Array(bl+1),cur=new Array(bl+1);for(let j=0;j<=bl;j++)prev[j]=j;
+ for(let i=1;i<=al;i++){cur[0]=i;let mn=i;for(let j=1;j<=bl;j++){const c=a.charCodeAt(i-1)===b.charCodeAt(j-1)?0:1;const v=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+c);cur[j]=v;if(v<mn)mn=v}if(mn>max)return max+1;const t=prev;prev=cur;cur=t}return prev[bl]}
+function fzTok(q,t){const L=q.length;if(t===q)return 1;
+ if(t.startsWith(q))return L>=2?.92:.6;
+ if(L>=3&&t.includes(q))return .8;
+ if(L>=4&&t.length>=4&&q.includes(t))return .6;
+ if(L===t.length&&L>=3){let d=[];for(let i=0;i<L&&d.length<3;i++)if(q[i]!==t[i])d.push(i);if(d.length===2&&d[1]===d[0]+1&&q[d[0]]===t[d[1]]&&q[d[1]]===t[d[0]])return .85}
+ const max=L<=3?0:L<=5?1:L<=8?2:3;
+ if(max){const d=fzLev(q,t,max);if(d<=max)return Math.max(.5,1-d/Math.max(L,t.length))*.9;
+  if(t.length>L){const d2=fzLev(q,t.slice(0,L),max);if(d2<=max)return .55}}
+ if(L>=4){const a=fzSk(q),b=fzSk(t);if(a.length>=2&&a===b)return .65}
+ return 0}
+function fzSearch(query,scope){const qs=fzN(query).split(" ").filter(Boolean);if(!qs.length)return[];const out=[];let ord=0;
+ const gs=scope==="all"?cat.garments:[G()];const miss=qs.length>=4?1:0;
+ gs.forEach(g=>{const gt=fzN(g.name).split(" ");g.cats.forEach(c=>{const ct=fzN(c.name).split(" ");c.items.forEach(i=>{ord++;
+  const code=String(i.code||"").toLowerCase().replace(/[^a-z0-9]/g,""),codes=[code];if(code.length===5&&/^[a-z]/.test(code)&&/\d/.test(code.slice(1)))codes.push(code.slice(1));
+  const nt=fzN(i.name).split(" ").filter(Boolean);let tot=0,bad=0;
+  for(const q of qs){let best=0;
+   for(const k of codes){let v=0;if(k===q)v=1.2;else if(k.startsWith(q)&&q.length>=2)v=.95;else if(q.length>=3&&k.includes(q))v=.85;else if(q.length>=4&&/\d/.test(q)&&fzLev(q,k,1)<=1)v=.6;if(v>best)best=v}
+   if(best<1.2)for(const t of nt){const v=fzTok(q,t);if(v>best)best=v;if(best>=1)break}
+   if(best<.9){for(const t of ct){const v=fzTok(q,t)*.8;if(v>best)best=v}for(const t of gt){const v=fzTok(q,t)*.6;if(v>best)best=v}}
+   if(best<.5){bad++;if(bad>miss){tot=-1;break}}else tot+=best}
+  if(tot>0)out.push({g,c,i,score:tot/qs.length-bad*.1-String(i.name||"").length/20000,ord})})})});
+ out.sort((a,b)=>b.score-a.score||a.ord-b.ord);return out}
 function catalog(){
  const g=G();
  app.innerHTML=`<div class="row" style="margin-bottom:12px"><button id="bk">← Orders</button><select id="gs">${cat.garments.map(x=>`<option value="${x.id}"${x.id===g.id?" selected":""}>${esc(x.name)}</option>`).join("")}</select><button id="ga">+ Garment</button><button id="gr">Rename</button><button id="gd">Delete</button></div>
  <div class="row" style="margin-bottom:12px"><button id="ex">Backup</button><button id="im">Import backup file</button><button id="cb">Copy backup</button><button id="pb">Paste backup</button><button id="hv">Version history</button><button id="mdl">Measurements &amp; posture…</button><button id="rs">Reset to factory catalog</button><button id="xcat">Send catalog to Claude</button><input type="file" id="imf" hidden></div>
+ <div class="card"><h2 style="margin-bottom:8px">Find a code</h2><div class="row"><input type="search" id="fq" placeholder="Search codes and descriptions (spelling mistakes are OK)…" autocomplete="off"><select id="fsc" style="flex:none;width:auto"><option value="all">All garments</option><option value="cur">${esc(g.name)} only</option></select></div><div id="fr" style="margin-top:8px"></div></div>
  <div class="card"><p style="margin:0 0 10px;color:var(--mute);font-family:system-ui,sans-serif;font-size:14px">★ items appear on the order form up front; everything else sits under “More options”. Categories you rarely change can be moved off the main flow (tap “On main flow” on a category, or use Choose rarely-changed…); they then sit in a “Rarely changed” pulldown at the bottom of the order form. Drag ☰ or ⠿ to reorder. Tap a tile to edit its code, name, diagram or category.</p><div class="row"><input type="search" id="cs" placeholder="Filter categories…"><button class="p" id="ac">+ Category</button><button id="ofd">Choose rarely-changed…</button></div></div><div id="cl"></div>`;
  const draw=()=>{const v=($("#cs").value||"").toLowerCase(),g=G();$("#cl").innerHTML=g.cats.filter(c=>!v||c.name.toLowerCase().includes(v)).map(cc).join("")||'<div class="card">No categories yet.</div>';
   $$(".et").forEach(b=>{const c=g.cats.find(x=>x.id===b.closest(".cc").dataset.id);sortable(b,".tile",".th",ids=>{c.items=ids.map(id=>c.items.find(i=>i.id===id));saveCat()})})};
  sortable($("#cl"),".cc",".h",ids=>{const g=G(),r=ids.map(id=>g.cats.find(c=>c.id===id)),rest=g.cats.filter(c=>!ids.includes(c.id));g.cats=r.concat(rest);saveCat()});
  $("#cs").oninput=draw;
+ const runFind=()=>{const q=$("#fq").value;catQ=q;catSc=$("#fsc").value;const box=$("#fr");
+  if(!q.trim()){box.innerHTML="";$("#cl").hidden=false;return}
+  $("#cl").hidden=true;const r=fzSearch(q,catSc),top=r.slice(0,60);
+  box.innerHTML=r.length?`<div class="mute" style="margin:0 0 6px">${r.length} match${r.length>1?"es":""}${r.length>60?" (showing the best 60 — type more to narrow it down)":""}. Tap one to open it.</div>`+top.map(x=>`<button type="button" class="pk fr" data-g="${x.g.id}" data-c="${x.c.id}" data-i="${x.i.id}" style="width:100%;text-align:left;height:auto;min-height:44px;margin-bottom:4px">${x.i.img?`<img src="${x.i.img}" alt="">`:'<div class="noimg" style="width:56px;height:56px;flex:none"></div>'}<span style="flex:1;min-width:0"><b>${esc(dc(x.i.code))}</b>${x.i.basic?" ★":""}${x.i.def?" △":""} — <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(x.i.name)}</span><small style="color:var(--mute)">${esc(x.g.name)} · ${esc(x.c.name)}</small></span></button>`).join(""):'<div class="mute">Nothing found. Try fewer or shorter words, or just the first letters.</div>'};
+ let fT=null;$("#fq").oninput=()=>{clearTimeout(fT);fT=setTimeout(runFind,180)};$("#fsc").onchange=runFind;
+ $("#fr").onclick=e=>{const b=e.target.closest(".fr");if(!b)return;const gg=cat.garments.find(x=>x.id===b.dataset.g),c=gg&&gg.cats.find(x=>x.id===b.dataset.c),it=c&&c.items.find(x=>x.id===b.dataset.i);if(!it)return;gid=gg.id;itemDlg(c,it,()=>catalog())};
+ $("#fq").value=catQ;$("#fsc").value=catSc==="all"?"all":"cur";if(catQ.trim())runFind();
  $("#cl").onclick=async e=>{if(dirty)return;const card=e.target.closest(".cc");if(!card)return;const g=G(),c=g.cats.find(x=>x.id===card.dataset.id);
   if(e.target.closest(".tg")){open.has(c.id)?open.delete(c.id):open.add(c.id);draw()}
   else if(e.target.closest(".of")){c.off=!c.off;saveCat();draw()}
