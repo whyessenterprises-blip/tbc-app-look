@@ -376,17 +376,24 @@ function form(){
  $("#rv").onclick=e=>{const b=e.target.closest(".chg");if(!b)return;showTab("s");pick(b.dataset.c)};
  const nc=s=>String(s).toUpperCase().replace(/[^A-Z0-9]/g,"");
  const findCode=s=>{const n=nc(s),r=[];if(!n)return r;const gs=[G(),...cat.garments.filter(x=>x.id!==gid)];gs.forEach(g=>g.cats.forEach(c=>c.items.forEach(i=>{const m=nc(i.code);if(m===n||(m.length===n.length+1&&m.endsWith(n)))r.push({c,i,g})})));return r};
- const drawX=()=>{$("#xl").innerHTML=extras.map((x,i)=>`<div class="xr" data-i="${i}"><input class="xc" placeholder="Code" value="${esc(x.code)}"><input class="xn" placeholder="Description / spec" value="${esc(x.note)}"><button type="button" class="xd" aria-label="Remove">×</button></div>`).join("");drawList()};
+ const drawX=()=>{$("#xl").innerHTML=extras.map((x,i)=>`<div class="xr" data-i="${i}"><input class="xc" placeholder="Code" value="${esc(x.code)}"><input class="xn" placeholder="Description / spec" value="${esc(x.note)}"><button type="button" class="xk" title="Add this code to the catalog" style="flex:none;padding:0 10px">+ Catalog</button><button type="button" class="xd" aria-label="Remove">×</button></div>`).join("");drawList()};
  const applyPick=(c,i,g)=>{if(g&&g.id!==gid){gid=g.id;qs="";$("#cq").value=""}if(sel[c.id]!==i.id){sel[c.id]=i.id;delete notes[c.id]}curId=c.id;drawG();$("#sp").classList.add("pane");drawList();drawPane();$("#qm").innerHTML=`✓ Added <b>${esc(dc(i.code))}</b> · ${esc(c.name)} — ${esc(i.name)}. Type a note below if it needs one, or press Enter.`;$("#qc").value="";qmat=[];const ni=$(".ni");if(ni)ni.focus()};
  const quickAdd=()=>{const raw=$("#qc").value.trim();if(!raw)return;const m=findCode(raw);
   if(m.length===1)return applyPick(m[0].c,m[0].i,m[0].g);
   if(m.length>1){qmat=m;$("#qm").innerHTML=`<div>${m.length} matches — tap the right one:</div>`+m.map((x,k)=>`<button type="button" class="qpick" data-k="${k}" style="display:block;width:100%;text-align:left;margin-top:6px;height:auto;padding:8px 12px">${esc(dc(x.i.code))} · ${esc(x.g.name)} · ${esc(x.c.name)} — ${esc(x.i.name)}</button>`).join("");return}
-  extras.push({code:raw.toUpperCase(),note:""});$("#qc").value="";drawX();$("#qm").innerHTML=`“${esc(raw)}” isn’t in the catalog, so it was added under Other codes. Type its description.`;const L=$$("#xl .xn");L[L.length-1].focus()};
+  extras.push({code:raw.toUpperCase(),note:""});$("#qc").value="";drawX();$("#qm").innerHTML=`“${esc(raw)}” isn’t in the catalog, so it was added under Other codes. Type its description, then tap <b>+ Catalog</b> if you want it in the catalog.`;const L=$$("#xl .xn");L[L.length-1].focus()};
  $("#qc").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();quickAdd()}};$("#qb").onclick=quickAdd;
  $("#qm").onclick=e=>{const b=e.target.closest(".qpick");if(b){const x=qmat[+b.dataset.k];applyPick(x.c,x.i,x.g)}};
  $("#xl").oninput=e=>{const r=e.target.closest(".xr");if(!r)return;const x=extras[+r.dataset.i];if(e.target.classList.contains("xc"))x.code=e.target.value;else x.note=e.target.value;drawList()};
  $("#xl").onkeydown=e=>{if(e.key==="Enter"&&e.target.closest(".xr")){e.preventDefault();$("#qc").focus()}};
- $("#xl").onclick=e=>{const b=e.target.closest(".xd");if(!b)return;extras.splice(+b.closest(".xr").dataset.i,1);drawX()};
+ $("#xl").onclick=e=>{const k=e.target.closest(".xk");if(k){const idx=+k.closest(".xr").dataset.i,x=extras[idx];if(!x.code.trim()){say("Type the code first.");return}
+  const ex=findCode(x.code.trim());if(ex.length){const m=ex[0];say(`${dc(m.i.code)} is already in the catalog (${m.g.name} · ${m.c.name}). It was chosen from the catalog instead.`);extras.splice(idx,1);applyPick(m.c,m.i,m.g);drawX();return}
+  const gs=ordGs(),c0=curCat()||(G().cats[0]);if(!gs.some(g=>g.id===gid))gid=gs[0].id;
+  itemDlg(c0,{_new:true,code:x.code.trim().toUpperCase(),name:(x.note||"").trim(),img:null,basic:false},(it,t,g)=>{const i2=extras.indexOf(x);let msg;
+   if(!sel[t.id]){sel[t.id]=it.id;if(i2>=0)extras.splice(i2,1);msg=`Added to the catalog (${g.name} · ${t.name}) and chosen in this order.`}
+   else msg=`Added to the catalog (${g.name} · ${t.name}). That category already has a code chosen in this order, so this one stays under Other codes.`;
+   drawX();drawList();drawPane();drawG();$("#qm").textContent="✓ "+msg},gs);return}
+  const b=e.target.closest(".xd");if(!b)return;extras.splice(+b.closest(".xr").dataset.i,1);drawX()};
  $("#xa").onclick=()=>{extras.push({code:"",note:""});drawX();const L=$$("#xl .xc");L[L.length-1].focus()};
  $("#spane").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.classList.contains("ni")){e.preventDefault();$("#qc").focus()}});
  const showTab=t=>{tab=t;$$(".tp").forEach(s=>s.hidden=s.dataset.t!==t);$$("#ft button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));if(t==="r")drawReview();if(t==="s"){if(!curCat()){const vs=visCats();curId=vs[0]&&vs[0].id;drawList();drawPane()}}scrollTo({top:0})};
@@ -568,13 +575,13 @@ function cropDlg(src,done){const im=new Image();im.onload=()=>{
  $("#cre",dlg2).onclick=()=>{r=null;draw()};$("#ccx",dlg2).onclick=()=>dlg2.innerHTML="";
  $("#cok",dlg2).onclick=()=>{const sx=r.x/sc,sy=r.y/sc,sw=r.w/sc,sh=r.h/sc,f=Math.min(1,320/Math.max(sw,sh)),o=document.createElement("canvas");o.width=Math.max(1,Math.round(sw*f));o.height=Math.max(1,Math.round(sh*f));const ox=o.getContext("2d");ox.fillStyle="#fff";ox.fillRect(0,0,o.width,o.height);ox.drawImage(im,sx,sy,sw,sh,0,0,o.width,o.height);dlg2.innerHTML="";done(o.toDataURL("image/png"))}};
  im.src=src}
-function itemDlg(c,i,after){
- const isNew=!i;i=i||{id:"i"+uid(),code:"",name:"",img:null,basic:false};let img=i.img,orig=i.orig||null;
+function itemDlg(c,i,after,gs){
+ const isNew=!i||!!i._new;if(i&&i._new){i=Object.assign({},i);delete i._new;i.id=i.id||"i"+uid()}i=i||{id:"i"+uid(),code:"",name:"",img:null,basic:false};const catOpts=g=>((cat.garments.find(x=>x.id===g)||G()).cats).map(x=>`<option value="${x.id}"${x.id===c.id?" selected":""}>${esc(x.name)}</option>`).join("");let img=i.img,orig=i.orig||null;
  dlg.innerHTML=`<div class="ov"><div class="md"><h2>${isNew?"Add item":"Edit item"}</h2>
  <div id="ip" style="text-align:center;margin-bottom:10px"></div>
  <div class="row" style="margin-bottom:10px"><button id="up">Upload diagram</button><button id="crp">Crop</button><button id="cfull">Use full diagram</button><button id="cpy">Copy picture</button><button id="pst">Paste picture</button><button id="rm">Remove diagram</button><input type="file" id="uf" accept="image/*" hidden></div>
  <label>Code</label><input id="ic" value="${esc(i.code)}"><label style="margin-top:10px">Name / description</label><textarea id="in">${esc(i.name)}</textarea>
- <label style="margin-top:10px">Category</label><select id="icat">${G().cats.map(x=>`<option value="${x.id}"${x.id===c.id?" selected":""}>${esc(x.name)}</option>`).join("")}</select>
+ ${gs?`<label style="margin-top:10px">Garment</label><select id="igar">${gs.map(g=>`<option value="${g.id}"${g.id===gid?" selected":""}>${esc(g.name)}</option>`).join("")}</select>`:""}<label style="margin-top:10px">Category</label><select id="icat">${catOpts(gs?gid:G().id)}</select>
  ${i.vf?'<p style="margin:10px 0 0;padding:8px;border-radius:8px;background:#fff3cd;color:#664d03;font-family:system-ui,sans-serif">⚠ This code was read from the book automatically and may be off by one character. Compare it with the book, fix it if needed, then Save (this clears the warning).</p>':""}<label style="margin-top:12px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="ib" style="width:24px;min-height:24px"${i.basic?" checked":""}> ★ Show on main menu (basic option)</label><label style="margin-top:8px;display:flex;gap:8px;align-items:center"><input type="checkbox" id="idf" style="width:24px;min-height:24px"${i.def?" checked":""}> △ Factory default (the factory uses it when nothing is chosen in this category)</label>
  <div class="row" style="margin-top:14px"><button class="p" id="ok">Save</button><button id="no">Cancel</button>${isNew?"":'<button id="rmi" style="margin-left:auto">Delete</button>'}</div></div></div>`;
  let pv=()=>$("#ip").innerHTML=img?`<img src="${img}" style="max-width:100%;max-height:180px;background:#fff;border-radius:8px">`:'<small style="color:var(--mute)">No diagram</small>';pv();
@@ -586,12 +593,13 @@ function itemDlg(c,i,after){
  $("#cfull").onclick=()=>{if(orig){img=orig;pv()}};
  $("#crp").onclick=()=>{if(!img)return;const src=orig||img;cropDlg(src,d=>{orig=src;img=d;pv()})};
  $("#uf").onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const k=Math.min(1,320/Math.max(im.width,im.height)),cv=document.createElement("canvas");cv.width=im.width*k;cv.height=im.height*k;const x=cv.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,cv.width,cv.height);x.drawImage(im,0,0,cv.width,cv.height);img=cv.toDataURL("image/jpeg",.85);orig=null;pv()};im.src=u};
+ if($("#igar"))$("#igar").onchange=()=>{$("#icat").innerHTML=catOpts($("#igar").value)};
  $("#no").onclick=()=>dlg.innerHTML="";
  if(!isNew)$("#rmi").onclick=async()=>{if(await ask("Delete this item?",{ok:"Delete"})){await snap("Before delete",1);c.items=c.items.filter(x=>x!==i);saveCat();dlg.innerHTML="";after()}};
  $("#ok").onclick=()=>{i.code=$("#ic").value.trim();i.name=$("#in").value.trim();i.img=img;if(orig&&orig!==img)i.orig=orig;else delete i.orig;i.basic=$("#ib").checked;i.def=$("#idf").checked;delete i.vf;if(!i.code&&!i.name){say("Add a code or a name.");return}
-  const t=G().cats.find(x=>x.id===$("#icat").value)||c;
+  const tg=$("#igar")?cat.garments.find(x=>x.id===$("#igar").value):null,t=(tg||G()).cats.find(x=>x.id===$("#icat").value)||c;
   if(isNew)t.items.push(i);else if(t!==c){c.items=c.items.filter(x=>x!==i);t.items.push(i)}
-  open.add(t.id);saveCat();dlg.innerHTML="";after()};
+  open.add(t.id);saveCat();dlg.innerHTML="";after(i,t,tg||G())};
 }
 /* one-page print: shrink the order to fit one sheet */
 const PW=720,PH=950;
