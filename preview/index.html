@@ -550,7 +550,7 @@ async function orderPdf(o){let box;try{
  const b64=cv.toDataURL("image/jpeg",.92).split(",")[1],bin=atob(b64),jpg=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)jpg[i]=bin.charCodeAt(i);
  const pdf=jpegToPdf(jpg,cv.width,cv.height);let sx="";for(let i=0;i<pdf.length;i+=0x8000)sx+=String.fromCharCode.apply(null,pdf.subarray(i,i+0x8000));return btoa(sx)
  }catch(e){return ""}finally{if(box)box.remove()}}
-async function mailPayload(o,kind){const seq=(o.mail&&o.mail.seq)||1;return{secret:appSet.secret,id:o.no+"#"+seq,to:mailAddrs(appSet.to),cc:mailAddrs(appSet.cc),subject:`Order ${o.ordno||o.no} — ${o.customer||""}`+(kind==="update"?" (UPDATED)":""),text:orderText(o),html:orderHtml(o),filename:`order-${o.ordno||o.no}`,pdf:await orderPdf(o)}}
+async function mailPayload(o0,kind){const o={...o0,defs:[]};const seq=(o.mail&&o.mail.seq)||1;return{secret:appSet.secret,id:o.no+"#"+seq,to:mailAddrs(appSet.to),cc:mailAddrs(appSet.cc),subject:`Order ${o.ordno||o.no} — ${o.customer||""}`+(kind==="update"?" (UPDATED)":""),text:orderText(o),html:orderHtml(o),filename:`order-${o.ordno||o.no}`,pdf:await orderPdf(o)}}
 async function postMail(p,urlOverride){const url=urlOverride||appSet.url;if(!navigator.onLine)return{state:"pending"};
  const opt={method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(p),redirect:"follow"};
  try{const r=await fetch(url,opt);let j=null;try{j=await r.json()}catch(e){}
