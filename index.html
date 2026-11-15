@@ -560,11 +560,15 @@ function jpegToPdf(jpg,w,h){const enc=new TextEncoder(),parts=[],off=[];let len=
  const xr=len;let x="xref\n0 6\n0000000000 65535 f \n";for(let i=1;i<=5;i++)x+=String(off[i]).padStart(10,"0")+" 00000 n \n";add(x+`trailer<</Size 6/Root 1 0 R>>\nstartxref\n${xr}\n%%EOF\n`);
  const out=new Uint8Array(len);let p=0;parts.forEach(b=>{out.set(b,p);p+=b.length});return out}
 async function orderPdf(o){let box;try{
- box=document.createElement("div");box.style.cssText="position:fixed;left:-99999px;top:0;visibility:hidden";box.innerHTML=`<div class="ep" id="epx"><style>${EPCSS}</style>${epHtml(o)}</div>`;document.body.appendChild(box);
- const ep=box.firstChild,CW=562,CH=742;
- const H=w=>{ep.style.width=w+"px";return ep.offsetHeight};
- let lo=CW,hi=2600;if(H(lo)<=lo*CH/CW)hi=lo;else{for(let k=0;k<16;k++){const m=(lo+hi)/2;H(m)<=m*CH/CW?hi=m:lo=m}}
- const Wl=Math.ceil(hi),Hl=H(Wl);
+ const CW=562,CH=742,FIT=.95;
+ box=document.createElement("iframe");box.style.cssText="position:fixed;left:-99999px;top:0;width:3000px;height:3000px;border:0;visibility:hidden";
+ box.srcdoc=`<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0"><div class="ep" id="epx"><style>${EPCSS}</style>${epHtml(o)}</div></body></html>`;
+ document.body.appendChild(box);await new Promise(r=>{box.onload=r;setTimeout(r,4000)});
+ const dc2=box.contentDocument,ep=dc2.getElementById("epx");
+ await Promise.all([...dc2.images].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r;setTimeout(r,3000)})));
+ const H=w=>{ep.style.width=w+"px";return Math.ceil(ep.getBoundingClientRect().height)};
+ let lo=CW,hi=3200;if(H(lo)<=lo*CH/CW*FIT)hi=lo;else{for(let k=0;k<18;k++){const m=(lo+hi)/2;H(m)<=m*CH/CW*FIT?hi=m:lo=m}}
+ const Wl=Math.ceil(hi),Hl=H(Wl)+14;
  const xhtml=new XMLSerializer().serializeToString(ep);
  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${Wl}" height="${Hl}"><foreignObject x="0" y="0" width="${Wl}" height="${Hl}">${xhtml}</foreignObject></svg>`;
  const img=new Image();await new Promise((res,rej)=>{img.onload=res;img.onerror=()=>rej(new Error("render"));img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)});
